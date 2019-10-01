@@ -4,7 +4,9 @@ Which is based on Coder.com Code-Server: https://github.com/cdr/code-server
 DotNet Core 3 SDK is preinstalled, allowing C# development in Linux.  
 
 # Docker Build Status
-![Docker Build Status](https://img.shields.io/docker/build/ptr727/code-server)
+![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/ptr727/code-server)
+![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/ptr727/code-server)  
+[Docker Hub](https://hub.docker.com/r/ptr727/code-server)
 
 # Usage
 Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-server) instructions.
