@@ -1,4 +1,4 @@
-# Code-Server VSCode with .NET Core SDK and PowerShell Pre-Installed
+# VSCode Code-Server with .NET Core SDK and PowerShell Pre-Installed
 Image is based on LinuxServer.io Code-Server: https://github.com/linuxserver/docker-code-server  
 Which is based on Coder.com Code-Server: https://github.com/cdr/code-server  
 DotNet Core 3 SDK is preinstalled, allowing C# development in Linux.  
