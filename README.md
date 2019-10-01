@@ -3,8 +3,14 @@ Image is based on LinuxServer.io Code-Server: https://github.com/linuxserver/doc
 Which is based on Coder.com Code-Server: https://github.com/cdr/code-server  
 DotNet Core 3 SDK is preinstalled, allowing C# development in Linux.  
 
+# Docker Build Status
+![Docker Build Status](https://img.shields.io/docker/build/ptr727/code-server)
+
 # Usage
 Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-server) instructions.
+
+# License
+![GitHub](https://img.shields.io/github/license/ptr727/code-server)  
 
 # Background Info
 - https://github.com/dotnet/dotnet-docker/blob/master/3.0/sdk/bionic/amd64/Dockerfile
