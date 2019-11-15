@@ -8,9 +8,9 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 
 ## Build Status
 
-![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/ptr727/VSCode-Server-DotNetCore)
-![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/ptr727/VSCode-Server-DotNetCore)  
-Pull from [Docker Hub](https://hub.docker.com/r/ptr727/VSCode-Server-DotNetCore)  
+![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/ptr727/vscode-server-dotnetcore)
+![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/ptr727/vscode-server-dotnetcore)  
+Pull from [Docker Hub](https://hub.docker.com/r/ptr727/vscode-server-dotnetcore)  
 Code at [GitHub](https://github.com/ptr727/VSCode-Server-DotNetCore)  
 
 ## Usage
