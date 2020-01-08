@@ -2,7 +2,7 @@
 FROM linuxserver/code-server:development
 
 LABEL name="VSCode-Server-DotNet" \
-    version="3.0" \
+    version="3.1" \
     description="VSCode Server with .NET Core SDK and PowerShell Pre-Installed" \
     maintainer="Pieter Viljoen <ptr727@users.noreply.github.com>"
 
