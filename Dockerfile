@@ -24,6 +24,6 @@ RUN apt-get update \
     && dpkg -i packages-microsoft-prod.deb \
     && apt-get update \
     # Install .NET Core SDK and PowerShell
-    && apt-get install -y dotnet-sdk-3.0 powershell \
+    && apt-get install -y dotnet-sdk-3.1 powershell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

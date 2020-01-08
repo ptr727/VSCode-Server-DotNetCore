@@ -8,7 +8,6 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 
 ## Build Status
 
-![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/ptr727/vscode-server-dotnetcore)
 ![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/ptr727/vscode-server-dotnetcore)  
 Pull from [Docker Hub](https://hub.docker.com/r/ptr727/vscode-server-dotnetcore)  
 Code at [GitHub](https://github.com/ptr727/VSCode-Server-DotNetCore)  
@@ -19,14 +18,12 @@ Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-s
 
 ## Background Info
 
-- <https://github.com/dotnet/dotnet-docker/blob/master/3.0/sdk/bionic/amd64/Dockerfile>
-- <https://github.com/linuxserver/docker-code-server/blob/master/Dockerfile>
-- <https://github.com/cdr/code-server/blob/master/Dockerfile>
-- <https://forums.unraid.net/topic/81306-support-linuxserverio-code-server/>
-- <https://blog.linuxserver.io/2019/09/14/customizing-our-containers/>
-- <https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script>
-- <https://dotnet.microsoft.com/download/linux-package-manager/ubuntu18-04/sdk-current>
-- <https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-linux?view=powershell-7>
+- [DotNet in Docker](https://github.com/dotnet/dotnet-docker/blob/master/3.0/sdk/bionic/amd64/Dockerfile)
+- [LSI Code Server Docker](https://github.com/linuxserver/docker-code-server/blob/master/Dockerfile)
+- [Code Code Server Docker](https://github.com/cdr/code-server/blob/master/Dockerfile)
+- [DotNet install](https://docs.microsoft.com/en-us/dotnet/core/install/linux-package-manager-ubuntu-1804)
+- [PowerShell install](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-linux?view=powershell-7#ubuntu-1804)
+- [Package Manager](https://dotnet.microsoft.com/download/linux-package-manager/ubuntu18-04/sdk-current)
 
 ## Notes
 
