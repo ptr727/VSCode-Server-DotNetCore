@@ -1,5 +1,6 @@
 # VSCode Server with .NET Core SDK and PowerShell Pre-Installed
 
+This is a docker image of VSCode Server with the .NET Core SDK and PowerShell pre-installed.  
 Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxserver/docker-code-server), which is based on [Coder.com Code-Server](https://github.com/cdr/code-server).  
 
 ## License
@@ -19,8 +20,8 @@ Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-s
 ## Background Info
 
 - [DotNet in Docker](https://github.com/dotnet/dotnet-docker/blob/master/3.0/sdk/bionic/amd64/Dockerfile)
-- [LSI Code Server Docker](https://github.com/linuxserver/docker-code-server/blob/master/Dockerfile)
-- [Code Code Server Docker](https://github.com/cdr/code-server/blob/master/Dockerfile)
+- [LSIO Code Server Docker](https://github.com/linuxserver/docker-code-server/blob/master/Dockerfile)
+- [Coder Code Server Docker](https://github.com/cdr/code-server/blob/master/Dockerfile)
 - [DotNet install](https://docs.microsoft.com/en-us/dotnet/core/install/linux-package-manager-ubuntu-1804)
 - [PowerShell install](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-linux?view=powershell-7#ubuntu-1804)
 - [Package Manager](https://dotnet.microsoft.com/download/linux-package-manager/ubuntu18-04/sdk-current)
@@ -33,4 +34,4 @@ Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-s
 - Run DotNet Core by `dotnet` in the console.
 - Run PowerShell by `pwsh` in the console.
 - If installing PowerShell Core Preview use `powershell-preview` and `pwsh-preview` to launch.
-- An alternative to building on top of the LSI image, is to use a [dynamic overlay](https://blog.linuxserver.io/2019/09/14/customizing-our-containers/)
+- An alternative to building on top of the LSIO image, is to use a [dynamic overlay](https://blog.linuxserver.io/2019/09/14/customizing-our-containers/)
