@@ -54,10 +54,10 @@ jobs:
           platforms: linux/amd64
           push: ${{ env.DOCKER_PUSH }}
           tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/vscode-server-dotnetcore:3.1
+            ptr727/vscode-server-dotnetcore:3.1
           build-args: |
-            LABEL_VERSION="3.1"
-            INSTALL_VERSION="dotnet-sdk-3.1"
+            LABEL_VERSION=3.1
+            INSTALL_VERSION=dotnet-sdk-3.1
 
       # .NET 5.0
       - name: 'Build and Push .NET 5.0'
@@ -66,8 +66,8 @@ jobs:
           platforms: linux/amd64
           push: ${{ env.DOCKER_PUSH }}
           tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/vscode-server-dotnetcore:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/vscode-server-dotnetcore:5.0
+            ptr727/vscode-server-dotnetcore:latest
+            ptr727/vscode-server-dotnetcore:5.0
           build-args: |
-            LABEL_VERSION="5.0"
-            INSTALL_VERSION="dotnet-sdk-5.0"
+            LABEL_VERSION=5.0
+            INSTALL_VERSION=dotnet-sdk-5.0
