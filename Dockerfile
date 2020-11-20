@@ -1,8 +1,10 @@
-#FROM codercom/code-server:v2
-FROM linuxserver/code-server:development
+FROM linuxserver/code-server:latest
+
+ARG LABEL_VERSION="3.1"
+ARG INSTALL_VERSION="dotnet-sdk-3.1"
 
 LABEL name="VSCode-Server-DotNet" \
-    version="3.1" \
+    version=${LABEL_VERSION} \
     description="VSCode Server with .NET Core SDK and PowerShell Pre-Installed" \
     maintainer="Pieter Viljoen <ptr727@users.noreply.github.com>"
 
@@ -23,7 +25,8 @@ RUN apt-get update \
     && wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb \
     && dpkg -i packages-microsoft-prod.deb \
     && apt-get update \
-    # Install .NET Core SDK and PowerShell
-    && apt-get install -y dotnet-sdk-3.1 powershell \
+    # Install .NET SDK and PowerShell
+    # https://docs.microsoft.com/en-us/dotnet/core/install/linux-ubuntu
+    && apt-get install -y ${INSTALL_VERSION} powershell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
