@@ -1,4 +1,3 @@
-#FROM codercom/code-server:v2
 FROM linuxserver/code-server:latest
 
 ARG LABEL_VERSION="3.1"

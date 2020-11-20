@@ -23,4 +23,4 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
-          repository: ${{ secrets.DOCKER_HUB_USERNAME }}/vscode-server-dotnetcore
+          repository: ptr727/vscode-server-dotnetcore
