@@ -1,0 +1,26 @@
+name: 'Update Docker Hub Descriptions'
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - README.md
+      - .github/workflows/DockerHubDescription.yml
+jobs:
+  description:
+    name: 'Update Docker Hub Descriptions'
+    runs-on: ubuntu-latest
+    steps:
+
+      # https://github.com/actions/checkout
+      - name: 'Checkout Code'
+        uses: actions/checkout@v2
+
+      # https://github.com/marketplace/actions/docker-hub-description
+      # Access tokens cannot update readme.md, we have to use the real password
+      - name: 'Update Docker Hub Description'
+        uses: peter-evans/dockerhub-description@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          repository: ${{ secrets.DOCKER_HUB_USERNAME }}/vscode-server-dotnetcore
