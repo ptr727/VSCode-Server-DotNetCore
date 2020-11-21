@@ -79,7 +79,7 @@ jobs:
           push: ${{ env.DOCKER_PUSH }}
           tags: |
             ptr727/vscode-server-dotnetcore:latest
-            ptr727/vscode-server-dotnetcore:3.1+5.0
+            ptr727/vscode-server-dotnetcore:3.1.5.0
           build-args: |
-            LABEL_VERSION=3.1+5.0
+            LABEL_VERSION=3.1.5.0
             "INSTALL_VERSION=dotnet-sdk-3.1 dotnet-sdk-5.0"

@@ -1,6 +1,6 @@
 FROM linuxserver/code-server:latest
 
-ARG LABEL_VERSION="3.1+5.0"
+ARG LABEL_VERSION="3.1.5.0"
 ARG INSTALL_VERSION="dotnet-sdk-3.1 dotnet-sdk-5.0"
 
 LABEL name="VSCode-Server-DotNet" \
