@@ -19,7 +19,7 @@ Docker container images are published on [Docker Hub](https://hub.docker.com/r/p
 Images are tagged using `latest`, `3.1` and `5.0`.  
 `latest` is currently .NET 5.0.  
 Images are automatically rebuilt every Monday morning, picking up the latest base image fixes.  
-![Docker Pulls](https://img.shields.io/docker/pulls/ptr727/vscode-server-dotnetcore?logo=github)  
+![Docker Pulls](https://img.shields.io/docker/pulls/ptr727/vscode-server-dotnetcore?logo=docker)  
 ![Docker Image Version](https://img.shields.io/docker/v/ptr727/vscode-server-dotnetcore/latest?label=latest&logo=docker)
 
 ## Usage
