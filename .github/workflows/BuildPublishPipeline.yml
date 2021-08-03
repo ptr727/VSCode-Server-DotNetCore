@@ -5,6 +5,7 @@ env:
   DOCKER_PUSH: ${{ github.ref == 'refs/heads/main' }}
 
 on:
+  workflow_dispatch:
   push:
     branches:
     - main
