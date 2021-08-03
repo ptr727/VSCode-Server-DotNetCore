@@ -19,14 +19,19 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    # Install wget
-    && apt-get install -y wget \
-    # Register the Microsoft repository, make sure it matches the platform
-    && wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb \
+    # Install pre-requisites
+    && apt-get install -y wget apt-transport-https software-properties-common \
+    # Register the Microsoft repository
+    && wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -sr)/packages-microsoft-prod.deb \
     && dpkg -i packages-microsoft-prod.deb \
+    # Enable universe repositories
+    && sudo add-apt-repository universe \
+    # Update
     && apt-get update \
+    && apt-get upgrade -y \
     # Install .NET SDK and PowerShell
     # https://docs.microsoft.com/en-us/dotnet/core/install/linux-ubuntu
+    # https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-linux
     && apt-get install -y ${INSTALL_VERSION} powershell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
