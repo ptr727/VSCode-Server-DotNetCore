@@ -1,12 +1,12 @@
 FROM linuxserver/code-server:latest
 
-ARG LABEL_VERSION="3.1.5.0"
-ARG INSTALL_VERSION="dotnet-sdk-3.1 dotnet-sdk-5.0"
+ARG LABEL_VERSION="6.0.101"
+ARG INSTALL_VERSION="dotnet-sdk-3.1 dotnet-sdk-6.0"
 
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
     description="VSCode Server with .NET Core SDK and PowerShell Pre-Installed" \
-    maintainer="Pieter Viljoen <ptr727@users.noreply.github.com>"
+    maintainer="Vivek Khurana <vkhurana@users.noreply.github.com>"
 
     # Enable .NET detection of running in a container
     # See: https://github.com/dotnet/dotnet-docker/blob/master/3.0/sdk/bionic/amd64/Dockerfile

@@ -5,22 +5,22 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 
 ## License
 
-![GitHub License](https://img.shields.io/github/license/ptr727/VSCode-Server-DotNetCore)  
+![GitHub License](https://img.shields.io/github/license/vkhurana/VSCode-Server-DotNetCore)  
 
 ## Build Status
 
-[Code and Pipline is on GitHub](https://github.com/ptr727/VSCode-Server-DotNetCore):  
-![GitHub Last Commit](https://img.shields.io/github/last-commit/ptr727/VSCode-Server-DotNetCore?logo=github)  
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/ptr727/VSCode-Server-DotNetCore/Build%20and%20Publish%20Docker%20Images?logo=github)
+[Code and Pipline is on GitHub](https://github.com/vkhurana/VSCode-Server-DotNetCore):  
+![GitHub Last Commit](https://img.shields.io/github/last-commit/vkhurana/VSCode-Server-DotNetCore?logo=github)  
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/vkhurana/VSCode-Server-DotNetCore/Build%20and%20Publish%20Docker%20Images?logo=github)
 
 ## Container Images
 
-Docker container images are published on [Docker Hub](https://hub.docker.com/r/ptr727/vscode-server-dotnetcore).  
-Images are tagged using `latest`, `3.1` and `5.0`.  
-`latest` includes .NET Core 3.1 and .NET 5.0.  
+Docker container images are published on [Docker Hub](https://hub.docker.com/r/vkhurana/vscode-server-dotnetcore).  
+Images are tagged using `latest`, `3.1` and `6.0`.  
+`latest` includes .NET Core 3.1 and .NET 6.0.  
 Images are automatically rebuilt every Monday morning, picking up the latest updates.  
-![Docker Pulls](https://img.shields.io/docker/pulls/ptr727/vscode-server-dotnetcore?logo=docker)  
-![Docker Image Version](https://img.shields.io/docker/v/ptr727/vscode-server-dotnetcore/latest?logo=docker)
+![Docker Pulls](https://img.shields.io/docker/pulls/vkhurana/vscode-server-dotnetcore?logo=docker)  
+![Docker Image Version](https://img.shields.io/docker/v/vkhurana/vscode-server-dotnetcore/latest?logo=docker)
 
 ## Usage
 
