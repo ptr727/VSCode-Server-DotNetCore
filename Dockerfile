@@ -33,5 +33,6 @@ RUN apt-get update \
     # https://docs.microsoft.com/en-us/dotnet/core/install/linux-ubuntu
     # https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-linux
     && apt-get install -y ${INSTALL_VERSION} powershell \
+    && dotnet --info \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
