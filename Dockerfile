@@ -1,4 +1,12 @@
-FROM linuxserver/code-server:latest
+# Test in docker shell:
+# docker run -it --rm --pull always --name Testing lscr.io/linuxserver/code-server:latest /bin/bash
+# export DEBIAN_FRONTEND=noninteractive
+
+# https://github.com/linuxserver/docker-code-server
+# Build from focal, not jammy / latest
+#   https://github.com/dotnet/core/issues/7038
+#   https://github.com/dotnet/core/issues/7699
+FROM lscr.io/linuxserver/code-server:focal
 
 ARG LABEL_VERSION="31.50.60"
 ARG INSTALL_VERSION="dotnet-sdk-3.1 dotnet-sdk-5.0 dotnet-sdk-6.0"
