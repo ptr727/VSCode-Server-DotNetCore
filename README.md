@@ -24,7 +24,7 @@ Images are automatically rebuilt every Monday morning, picking up the latest upd
 
 ## Usage
 
-Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-server) instructions.
+Follow the [linuxserver/code-server](https://github.com/linuxserver/docker-code-server) instructions.
 
 ## Background Info
 
@@ -43,4 +43,4 @@ Follow the [linuxserver/code-server](https://hub.docker.com/r/linuxserver/code-s
 - Run DotNet Core by `dotnet` in the console.
 - Run PowerShell by `pwsh` in the console.
 - If installing PowerShell Core Preview use `powershell-preview` and `pwsh-preview` to launch.
-- An alternative to building on top of the LSIO image, is to use a [dynamic overlay](https://blog.linuxserver.io/2019/09/14/customizing-our-containers/)
+- An alternative to building on top of the LSIO image, is to use a [dynamic overlay](https://blog.linuxserver.io/2019/09/14/customizing-our-containers/).
