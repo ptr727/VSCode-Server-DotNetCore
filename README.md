@@ -1,6 +1,6 @@
 # VSCode Server with .NET Core SDK and PowerShell Pre-Installed
 
-This is a docker image of VSCode Server with the .NET Core SDK and PowerShell pre-installed.  
+This is a docker image of VSCode Server with the .NET SDK and PowerShell pre-installed.  
 Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxserver/docker-code-server), which is based on [Coder.com Code-Server](https://github.com/cdr/code-server).  
 
 ## License
