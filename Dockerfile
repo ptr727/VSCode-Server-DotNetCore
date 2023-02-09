@@ -3,13 +3,10 @@
 # export DEBIAN_FRONTEND=noninteractive
 
 # https://github.com/linuxserver/docker-code-server
-# Build from focal, not jammy / latest
-#   https://github.com/dotnet/core/issues/7038
-#   https://github.com/dotnet/core/issues/7699
-FROM lscr.io/linuxserver/code-server:focal
+FROM lscr.io/linuxserver/code-server:latest
 
-ARG LABEL_VERSION="31.50.60"
-ARG INSTALL_VERSION="dotnet-sdk-3.1 dotnet-sdk-5.0 dotnet-sdk-6.0"
+ARG LABEL_VERSION="60.70"
+ARG INSTALL_VERSION="dotnet-sdk-6.0 dotnet-sdk-7.0"
 
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
@@ -30,10 +27,15 @@ RUN apt-get update \
     # Install pre-requisites
     && apt-get install -y wget apt-transport-https software-properties-common \
     # Register the Microsoft repository
-    && wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -sr)/packages-microsoft-prod.deb \
+    && wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -sr)/packages-microsoft-prod.deb \
     && dpkg -i packages-microsoft-prod.deb \
-    # Enable universe repositories
-    && sudo add-apt-repository universe \
+    && rm packages-microsoft-prod.deb \
+    && touch /etc/apt/preferences \
+    && echo "Package: *" >> /etc/apt/preferences \
+    && echo "Pin: origin \"packages.microsoft.com\"" >> /etc/apt/preferences \
+    && echo "Pin-Priority: 1001" >> /etc/apt/preferences \
+    && cat /etc/apt/preferences \
+    && cat /etc/apt/sources.list.d/microsoft-prod.list \
     # Update
     && apt-get update \
     && apt-get upgrade -y \

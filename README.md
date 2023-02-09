@@ -11,13 +11,13 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 
 [Code and Pipline is on GitHub](https://github.com/ptr727/VSCode-Server-DotNetCore):  
 ![GitHub Last Commit](https://img.shields.io/github/last-commit/ptr727/VSCode-Server-DotNetCore?logo=github)  
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/ptr727/VSCode-Server-DotNetCore/Build%20and%20Publish%20Docker%20Images?logo=github)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/ptr727/VSCode-Server-DotNetCore/BuildPublishPipeline.yml?logo=github)
 
 ## Container Images
 
 Docker container images are published on [Docker Hub](https://hub.docker.com/r/ptr727/vscode-server-dotnetcore).  
-Images are tagged using `latest`, `3.1`, `5.0`, and `6.0`.  
-`latest` includes .NET Core 3.1 and .NET 5.0 and .NET 6.0.  
+Images are tagged using `latest`, `6.0`, and `7.0`.  
+`latest` includes .NET 6.0 and .NET 7.0.  
 Images are automatically rebuilt every Monday morning, picking up the latest updates.  
 ![Docker Pulls](https://img.shields.io/docker/pulls/ptr727/vscode-server-dotnetcore?logo=docker)  
 ![Docker Image Version](https://img.shields.io/docker/v/ptr727/vscode-server-dotnetcore/latest?logo=docker)
@@ -37,6 +37,7 @@ Follow the [linuxserver/code-server](https://github.com/linuxserver/docker-code-
 
 ## Notes
 
+- .NET 5 and .NET Core 3.1 and older are [no longer supported](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu) on Ubuntu Jammy.
 - codercom/code-server runs as root, not permission friendly when mapping volumes.
 - linuxserver/code-server allows specifying PUID and GUID, ideal when using mapped volumes in e.g. UnRaid.
 - Use `cat /etc/*-release` to determine the base image, installed packages must match the base image.
