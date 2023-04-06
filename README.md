@@ -16,8 +16,8 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 ## Container Images
 
 Docker container images are published on [Docker Hub](https://hub.docker.com/r/vkhurana/vscode-server-dotnetcore).  
-Images are tagged using `latest`, `3.1` and `6.0`.  
-`latest` includes .NET Core 3.1 and .NET 6.0.  
+Images are tagged using `latest`, `3.1` and `7.0`.  
+`latest` includes .NET Core 3.1 and .NET 7.0.  
 Images are automatically rebuilt every Monday morning, picking up the latest updates.  
 ![Docker Pulls](https://img.shields.io/docker/pulls/vkhurana/vscode-server-dotnetcore?logo=docker)  
 ![Docker Image Version](https://img.shields.io/docker/v/vkhurana/vscode-server-dotnetcore/latest?logo=docker)

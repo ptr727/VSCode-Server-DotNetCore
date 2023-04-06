@@ -60,30 +60,30 @@ jobs:
             LABEL_VERSION=3.1
             INSTALL_VERSION=dotnet-sdk-3.1
 
-      # .NET 6.0
-      - name: 'Build and Push .NET 6.0'
+      # .NET 7.0
+      - name: 'Build and Push .NET 7.0'
         uses: docker/build-push-action@v2
         with:
           platforms: linux/amd64
           push: ${{ env.DOCKER_PUSH }}
           tags: |
-            vkhurana/vscode-server-dotnetcore:6.0
+            vkhurana/vscode-server-dotnetcore:7.0
           build-args: |
-            LABEL_VERSION=6.0
-            INSTALL_VERSION=dotnet-sdk-6.0
+            LABEL_VERSION=7.0
+            INSTALL_VERSION=dotnet-sdk-7.0
 
-      # .NET Core 3.1 and .NET 6.0
-      - name: 'Build and Push .NET Core 3.1 and .NET 6.0'
+      # .NET Core 3.1 and .NET 7.0
+      - name: 'Build and Push .NET Core 3.1 and .NET 7.0'
         uses: docker/build-push-action@v2
         with:
           platforms: linux/amd64
           push: ${{ env.DOCKER_PUSH }}
           tags: |
             vkhurana/vscode-server-dotnetcore:latest
-            vkhurana/vscode-server-dotnetcore:6.0.101
+            vkhurana/vscode-server-dotnetcore:7.0.101
           build-args: |
-            LABEL_VERSION=31.60
-            "INSTALL_VERSION=dotnet-sdk-3.1 dotnet-sdk-6.0"
+            LABEL_VERSION=31.70
+            "INSTALL_VERSION=dotnet-sdk-3.1 dotnet-sdk-7.0"
 
       # # .NET 6.0 for arm64v8
       # - name: 'Build and Push .NET 6.0 for ARM64'
