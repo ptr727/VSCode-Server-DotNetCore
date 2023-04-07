@@ -15,10 +15,16 @@ on:
     - cron: "0 2 * * MON"
 
 jobs:
+
   build:
     name: 'Build and Publish Docker Images'
     runs-on: ubuntu-latest
 
+    strategy:
+      # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
+      matrix:
+        images: ${{ fromJson(needs.setmatrix.outputs.matrix).images }}
+    
     steps:
 
       # https://github.com/marketplace/actions/checkout
@@ -43,40 +49,11 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       # https://github.com/marketplace/actions/build-and-push-docker-images
-
-      # .NET 6.0
-      - name: 'Build and Push .NET 6.0'
+      - name: 'Build and Push .NET LTS and STS'
         uses: docker/build-push-action@v4
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ env.DOCKER_PUSH }}
-          tags: |
-            ptr727/vscode-server-dotnetcore:6.0
-          build-args: |
-            LABEL_VERSION=6.0
-            INSTALL_VERSION=dotnet-sdk-6.0
-
-      # .NET 7.0
-      - name: 'Build and Push .NET 7.0'
-        uses: docker/build-push-action@v4
-        with:
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: ${{ env.DOCKER_PUSH }}
-          tags: |
-            ptr727/vscode-server-dotnetcore:7.0
-          build-args: |
-            LABEL_VERSION=7.0
-            INSTALL_VERSION=dotnet-sdk-7.0
-
-      # .NET 6.0 and .NET 7.0
-      - name: 'Build and Push .NET 6.0 and .NET 7.0'
-        uses: docker/build-push-action@v4
-        with:
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: ${{ env.DOCKER_PUSH }}
+          file: Dockerfile.InstallScript
           tags: |
             ptr727/vscode-server-dotnetcore:latest
-            ptr727/vscode-server-dotnetcore:60.70
-          build-args: |
-            LABEL_VERSION=60.70
-            "INSTALL_VERSION=dotnet-sdk-6.0 dotnet-sdk-7.0"
