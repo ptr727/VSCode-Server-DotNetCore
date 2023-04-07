@@ -13,7 +13,8 @@
 # https://github.com/linuxserver/docker-code-server
 FROM lscr.io/linuxserver/code-server:latest
 
-ARG LABEL_VERSION="LTS.STS"
+# TODO: Get current STS and LTS versions dynamically
+ARG LABEL_VERSION="60.70"
 
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
