@@ -28,6 +28,8 @@ jobs:
       # https://github.com/marketplace/actions/docker-setup-qemu
       - name: 'Setup QEMU'
         uses: docker/setup-qemu-action@v2
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
 
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: 'Setup Docker Buildx'
@@ -46,7 +48,7 @@ jobs:
       - name: 'Build and Push .NET 6.0'
         uses: docker/build-push-action@v4
         with:
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ env.DOCKER_PUSH }}
           tags: |
             ptr727/vscode-server-dotnetcore:6.0
@@ -58,7 +60,7 @@ jobs:
       - name: 'Build and Push .NET 7.0'
         uses: docker/build-push-action@v4
         with:
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ env.DOCKER_PUSH }}
           tags: |
             ptr727/vscode-server-dotnetcore:7.0
@@ -70,7 +72,7 @@ jobs:
       - name: 'Build and Push .NET 6.0 and .NET 7.0'
         uses: docker/build-push-action@v4
         with:
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ env.DOCKER_PUSH }}
           tags: |
             ptr727/vscode-server-dotnetcore:latest
