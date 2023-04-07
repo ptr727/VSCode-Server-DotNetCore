@@ -20,11 +20,6 @@ jobs:
     name: 'Build and Publish Docker Images'
     runs-on: ubuntu-latest
 
-    strategy:
-      # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
-      matrix:
-        images: ${{ fromJson(needs.setmatrix.outputs.matrix).images }}
-    
     steps:
 
       # https://github.com/marketplace/actions/checkout
