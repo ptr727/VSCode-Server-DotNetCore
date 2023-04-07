@@ -1,9 +1,5 @@
 name: 'Build and Publish Docker Images'
 
-env:
-  # Push main branch only, else just build
-  DOCKER_PUSH: ${{ github.ref == 'refs/heads/main' }}
-
 on:
   push:
     branches: [main, develop]
@@ -48,7 +44,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: ${{ env.DOCKER_PUSH }}
+          push: ${{ (github.event_name != 'pull_request') }}
           file: Dockerfile.InstallScript
           tags: |
-            ptr727/vscode-server-dotnetcore:latest
+            ptr727/vscode-server-dotnetcore:${{ endsWith(github.ref, 'refs/heads/main') && 'latest' || 'develop' }}
