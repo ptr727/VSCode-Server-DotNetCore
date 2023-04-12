@@ -1,48 +1,75 @@
-# Test in docker shell:
+# Test base image in shell:
 # docker run -it --rm --pull always --name Testing lscr.io/linuxserver/code-server:latest /bin/bash
 # export DEBIAN_FRONTEND=noninteractive
+
+# Test image in shell:
+# docker run -it --rm --pull always --name Testing ptr727/vscode-server-dotnetcore:develop /bin/bash
+
+# Build Dockerfile
+# docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 --tag testing:latest .
+
+# Test linux/amd64 target
+# docker buildx build --load --progress plain --no-cache --platform linux/amd64 --tag testing:latest .
+# docker run -it --rm --name Testing testing:latest /bin/bash
+
+
 
 # https://github.com/linuxserver/docker-code-server
 FROM lscr.io/linuxserver/code-server:latest
 
+# Image label
+# TODO: Get current STS and LTS versions dynamically
 ARG LABEL_VERSION="60.70"
-ARG INSTALL_VERSION="dotnet-sdk-6.0 dotnet-sdk-7.0"
-
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
-    description="VSCode Server with .NET Core SDK and PowerShell Pre-Installed" \
+    description="VSCode Server with .NET SDK Pre-Installed" \
     maintainer="Pieter Viljoen <ptr727@users.noreply.github.com>"
 
-    # Enable .NET detection of running in a container
-    # See: https://github.com/dotnet/dotnet-docker/blob/master/3.0/sdk/bionic/amd64/Dockerfile
+# See: https://github.com/dotnet/dotnet-docker/blob/main/src/sdk/7.0/jammy/amd64/Dockerfile
 ENV DOTNET_RUNNING_IN_CONTAINER=true \
     # Enable correct mode for dotnet watch (only mode supported in a container)
     DOTNET_USE_POLLING_FILE_WATCHER=true \
     # Skip extraction of XML docs - generally not useful within an image/container - helps performance
     NUGET_XMLDOC_MODE=skip \
+    # Do not show first run text
+    DOTNET_NOLOGO=true \
+    # Unset ASPNETCORE_URLS from aspnet base image
+    ASPNETCORE_URLS= \
+    # Do not generate certificate
+    DOTNET_GENERATE_ASPNET_CERTIFICATE=false \
     # No installer frontend interaction
     DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-    # Install pre-requisites
-    && apt-get install -y wget apt-transport-https software-properties-common \
-    # Register the Microsoft repository
-    && wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -sr)/packages-microsoft-prod.deb \
-    && dpkg -i packages-microsoft-prod.deb \
-    && rm packages-microsoft-prod.deb \
-    && touch /etc/apt/preferences \
-    && echo "Package: *" >> /etc/apt/preferences \
-    && echo "Pin: origin \"packages.microsoft.com\"" >> /etc/apt/preferences \
-    && echo "Pin-Priority: 1001" >> /etc/apt/preferences \
-    && cat /etc/apt/preferences \
-    && cat /etc/apt/sources.list.d/microsoft-prod.list \
-    # Update
-    && apt-get update \
-    && apt-get upgrade -y \
-    # Install .NET SDK and PowerShell
-    # https://docs.microsoft.com/en-us/dotnet/core/install/linux-ubuntu
-    # https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-linux
-    && apt-get install -y ${INSTALL_VERSION} powershell \
-    && dotnet --info \
+# Prerequisites
+# https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu#dependencies
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+        libc6 \
+        libgcc1 \
+        libgcc-s1 \
+        libgssapi-krb5-2 \
+        libicu70 \
+        liblttng-ust1 \
+        libssl3 \
+        libstdc++6 \
+        libunwind8 \
+        wget  \
+        zlib1g \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# TODO: What is preferred way to set the root and get in path?
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV DOTNET_CLI_HOME=/usr/share/dotnet
+
+# Install .NET
+# https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \ 
+    && chmod +x ./dotnet-install.sh \
+    && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel LTS\
+    && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel STS\
+    && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet \
+    && dotnet --list-runtimes \
+    && dotnet --list-sdks \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

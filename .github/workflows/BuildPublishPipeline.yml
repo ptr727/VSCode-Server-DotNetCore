@@ -1,9 +1,5 @@
 name: 'Build and Publish Docker Images'
 
-env:
-  # Push main branch only, else just build
-  DOCKER_PUSH: ${{ github.ref == 'refs/heads/main' }}
-
 on:
   push:
     branches: [main, develop]
@@ -15,6 +11,7 @@ on:
     - cron: "0 2 * * MON"
 
 jobs:
+
   build:
     name: 'Build and Publish Docker Images'
     runs-on: ubuntu-latest
@@ -28,6 +25,8 @@ jobs:
       # https://github.com/marketplace/actions/docker-setup-qemu
       - name: 'Setup QEMU'
         uses: docker/setup-qemu-action@v2
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
 
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: 'Setup Docker Buildx'
@@ -41,40 +40,10 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       # https://github.com/marketplace/actions/build-and-push-docker-images
-
-      # .NET 6.0
-      - name: 'Build and Push .NET 6.0'
+      - name: 'Build and Push .NET LTS and STS'
         uses: docker/build-push-action@v4
         with:
-          platforms: linux/amd64
-          push: ${{ env.DOCKER_PUSH }}
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: ${{ (github.event_name != 'pull_request') }}
           tags: |
-            ptr727/vscode-server-dotnetcore:6.0
-          build-args: |
-            LABEL_VERSION=6.0
-            INSTALL_VERSION=dotnet-sdk-6.0
-
-      # .NET 7.0
-      - name: 'Build and Push .NET 7.0'
-        uses: docker/build-push-action@v4
-        with:
-          platforms: linux/amd64
-          push: ${{ env.DOCKER_PUSH }}
-          tags: |
-            ptr727/vscode-server-dotnetcore:7.0
-          build-args: |
-            LABEL_VERSION=7.0
-            INSTALL_VERSION=dotnet-sdk-7.0
-
-      # .NET 6.0 and .NET 7.0
-      - name: 'Build and Push .NET 6.0 and .NET 7.0'
-        uses: docker/build-push-action@v4
-        with:
-          platforms: linux/amd64
-          push: ${{ env.DOCKER_PUSH }}
-          tags: |
-            ptr727/vscode-server-dotnetcore:latest
-            ptr727/vscode-server-dotnetcore:60.70
-          build-args: |
-            LABEL_VERSION=60.70
-            "INSTALL_VERSION=dotnet-sdk-6.0 dotnet-sdk-7.0"
+            ptr727/vscode-server-dotnetcore:${{ endsWith(github.ref, 'refs/heads/main') && 'latest' || 'develop' }}
