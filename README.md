@@ -16,7 +16,7 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 ## Container Images
 
 Docker container images are published on [Docker Hub](https://hub.docker.com/r/ptr727/vscode-server-dotnetcore).  
-Multi-Architecture images are created for `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.  
+Multi-Architecture images are created for `linux/amd64` and `linux/arm64` (`linux/arm/v7` is [no longer supported](https://www.linuxserver.io/blog/a-farewell-to-arm-hf) by LSIO).  
 Tags are `latest` for `main` branch and `develop` for `develop` branch.  
 E.g. `docker pull ptr727/vscode-server-dotnetcore:latest`  
 E.g. `docker pull ptr727/vscode-server-dotnetcore:develop`
