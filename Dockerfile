@@ -6,7 +6,7 @@
 # docker run -it --rm --pull always --name Testing ptr727/vscode-server-dotnetcore:develop /bin/bash
 
 # Build Dockerfile
-# docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 --tag testing:latest .
+# docker buildx build --platform linux/amd64,linux/arm64 --tag testing:latest .
 
 # Test linux/amd64 target
 # docker buildx build --load --progress plain --no-cache --platform linux/amd64 --tag testing:latest .
