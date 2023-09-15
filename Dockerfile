@@ -1,4 +1,7 @@
-# Test base image in shell:
+# Test MSCR image in shell:
+# docker run -it --rm --pull always --name Testing mcr.microsoft.com/dotnet/sdk:latest /bin/bash
+
+# Test LSIO image in shell:
 # docker run -it --rm --pull always --name Testing lscr.io/linuxserver/code-server:latest /bin/bash
 # export DEBIAN_FRONTEND=noninteractive
 
@@ -11,6 +14,10 @@
 # Test linux/amd64 target
 # docker buildx build --load --progress plain --no-cache --platform linux/amd64 --tag testing:latest .
 # docker run -it --rm --name Testing testing:latest /bin/bash
+# docker run -d --name Testing testing:latest
+# http://localhost:8443/
+# docker stop Testing
+# docker rm Testing
 
 
 
@@ -18,7 +25,7 @@
 FROM lscr.io/linuxserver/code-server:latest
 
 # Image label
-# TODO: Get current STS and LTS versions dynamically
+# TODO: Get current LTS and STS versions dynamically
 ARG LABEL_VERSION="60.70"
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
@@ -58,16 +65,18 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# TODO: What is preferred way to set the root and get in path?
+# Set .NET root to same path used for installation
+# https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script#set-environment-variables
 ENV DOTNET_ROOT=/usr/share/dotnet
-ENV DOTNET_CLI_HOME=/usr/share/dotnet
 
 # Install .NET
 # https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
+# https://github.com/dotnet/install-scripts/blob/main/src/dotnet-install.sh
 RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \ 
     && chmod +x ./dotnet-install.sh \
-    && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel LTS\
-    && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel STS\
+    && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel LTS \
+    && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel STS \
+    && rm ./dotnet-install.sh \
     && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet \
     && dotnet --list-runtimes \
     && dotnet --list-sdks \
