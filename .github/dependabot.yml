@@ -1,0 +1,16 @@
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+
+  # main
+- package-ecosystem: "github-actions"
+  directory: "/"
+  schedule:
+    interval: "daily"
+
+  # develop
+- package-ecosystem: "github-actions"
+  directory: "/"
+  target-branch: "develop"
+  schedule:
+    interval: "daily"

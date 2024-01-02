@@ -22,11 +22,12 @@
 
 
 # https://github.com/linuxserver/docker-code-server
+# https://github.com/linuxserver/docker-code-server/blob/master/Dockerfile
 FROM lscr.io/linuxserver/code-server:latest
 
 # Image label
 # TODO: Get current LTS and STS versions dynamically
-ARG LABEL_VERSION="60.70"
+ARG LABEL_VERSION="70.80"
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
     description="VSCode Server with .NET SDK Pre-Installed" \
@@ -47,8 +48,9 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true \
     # No installer frontend interaction
     DEBIAN_FRONTEND=noninteractive
 
-# Prerequisites
+# Prerequisites, keep up with LSIO base image, currently Ubuntu Jammy 22.04
 # https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu#dependencies
+# https://github.com/linuxserver/docker-code-server/blob/master/Dockerfile
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         libc6 \
@@ -69,7 +71,7 @@ RUN apt-get update && apt-get upgrade -y \
 # https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script#set-environment-variables
 ENV DOTNET_ROOT=/usr/share/dotnet
 
-# Install .NET
+# Install .NET LTS and STS versions
 # https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
 # https://github.com/dotnet/install-scripts/blob/main/src/dotnet-install.sh
 RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \ 
