@@ -24,7 +24,7 @@ jobs:
 
       # https://github.com/marketplace/actions/docker-setup-qemu
       - name: 'Setup QEMU'
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64
 
