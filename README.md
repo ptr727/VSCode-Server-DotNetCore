@@ -11,7 +11,7 @@ Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxse
 
 [Code and Pipeline is on GitHub](https://github.com/ptr727/VSCode-Server-DotNetCore):  
 ![GitHub Last Commit](https://img.shields.io/github/last-commit/ptr727/VSCode-Server-DotNetCore?logo=github)  
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/ptr727/VSCode-Server-DotNetCore/BuildPublishPipeline.yml?logo=github)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/ptr727/VSCode-Server-DotNetCore/publish-release.yml?logo=github)
 
 ## Container Images
 

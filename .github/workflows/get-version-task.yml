@@ -1,0 +1,54 @@
+name: Get version information task
+
+on:
+  workflow_call:
+    inputs:
+      # Git ref to check out and version. Empty falls back to the caller's default checkout ref (`github.ref`); the
+      # publisher passes an explicit branch so a scheduled run can still compute versions for `develop`.
+      ref:
+        required: false
+        type: string
+        default: ''
+    outputs:
+      SemVer2:
+        value: ${{ jobs.get-version.outputs.SemVer2 }}
+      AssemblyVersion:
+        value: ${{ jobs.get-version.outputs.AssemblyVersion }}
+      AssemblyFileVersion:
+        value: ${{ jobs.get-version.outputs.AssemblyFileVersion }}
+      AssemblyInformationalVersion:
+        value: ${{ jobs.get-version.outputs.AssemblyInformationalVersion }}
+      # Full SHA of the commit the version was computed from, used to pin the release tag to the exact built commit.
+      GitCommitId:
+        value: ${{ jobs.get-version.outputs.GitCommitId }}
+
+jobs:
+
+  get-version:
+    name: Get version information job
+    runs-on: ubuntu-latest
+    outputs:
+      SemVer2: ${{ steps.nbgv.outputs.SemVer2 }}
+      AssemblyVersion: ${{ steps.nbgv.outputs.AssemblyVersion }}
+      AssemblyFileVersion: ${{ steps.nbgv.outputs.AssemblyFileVersion }}
+      AssemblyInformationalVersion: ${{ steps.nbgv.outputs.AssemblyInformationalVersion }}
+      GitCommitId: ${{ steps.nbgv.outputs.GitCommitId }}
+
+    steps:
+
+      - name: Setup .NET SDK step
+        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
+        with:
+          dotnet-version: 10.x
+
+      - name: Checkout code step
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      # nbgv is floated on @master: its tag stream lags master, so Dependabot tag-tracking would propose a downgrade.
+      # Revisit if dotnet/nbgv resumes regular tagged releases.
+      - name: Run Nerdbank.GitVersioning tool step
+        id: nbgv
+        uses: dotnet/nbgv@master
