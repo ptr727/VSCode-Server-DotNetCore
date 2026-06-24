@@ -84,6 +84,8 @@ jobs:
       # Push to GitHub and Docker Hub.
       github: true
       dockerhub: true
+      # Docker-only: no release-asset-* files, so the release is just the tag + source zip + README + LICENSE.
+      expect_release_assets: false
 
   # Caller-gated to main: the badge and Docker Hub overview have no per-branch context, so they update only when main
   # is among the published branches (a develop-only push skips them). One invocation, not a per-branch matrix leg.
@@ -106,7 +108,6 @@ jobs:
       contents: read
     with:
       ref: main
-      repositories: '["ptr727/vscode-server-dotnetcore"]'
       readme-filepath: ./README.md
 
   # Release artifacts are an intra-run handoff (durable copies live on the GitHub release), so leaving them accumulates
