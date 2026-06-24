@@ -86,7 +86,7 @@ jobs:
     needs: get-repos
     strategy:
       matrix:
-        repository: ${{ fromJson(needs.get-repos.outputs.repositories) }}
+        repository: ${{ fromJSON(needs.get-repos.outputs.repositories) }}
 
     steps:
 
@@ -106,7 +106,9 @@ jobs:
       # Optional readme render (e.g. m4 with version includes) before pushing.
       - name: Generate readme step
         if: ${{ inputs.transform-run != '' }}
-        run: ${{ inputs.transform-run }}
+        run: |
+          set -euo pipefail
+          ${{ inputs.transform-run }}
 
       - name: Publish Docker Hub readme step
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
