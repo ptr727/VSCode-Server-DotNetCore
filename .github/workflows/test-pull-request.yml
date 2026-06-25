@@ -1,0 +1,112 @@
+name: Test pull request action
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Detect which delivery targets a PR touches so we smoke-build only what changed. Workflow files are excluded
+  # (a path filter can't judge them); workflow_dispatch forces every target on.
+  changes:
+    name: Detect changed targets job
+    runs-on: ubuntu-latest
+    # dorny/paths-filter reads changed files via the API (no checkout), so grant pull-requests: read.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docker: ${{ github.event_name == 'pull_request' && steps.filter.outputs.docker || 'true' }}
+    steps:
+      - name: Filter changed paths step
+        id: filter
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'version.json'
+
+  # Build only the changed targets in smoke mode (Docker amd64-only, reduced matrix,
+  # no publishing), in the PR base-branch configuration. Skipped when no target changed.
+  smoke-build:
+    name: Smoke build changed targets job
+    needs: [changes]
+    if: >-
+      needs.changes.outputs.docker == 'true'
+    uses: ./.github/workflows/build-release-task.yml
+    secrets: inherit
+    with:
+      smoke: true
+      # Do not publish anything from a PR.
+      github: false
+      dockerhub: false
+      # Check out the PR head by SHA: refs/pull/N/head is reachable in the base repo even for
+      # forks, unlike the head_ref branch name. workflow_dispatch falls back to the triggering ref.
+      ref: ${{ github.event.pull_request.head.sha || github.ref_name }}
+      branch: ${{ github.base_ref || github.ref_name }}
+      enable_docker: ${{ needs.changes.outputs.docker == 'true' }}
+
+  # TODO: GitHub Actions does not support required status checks on conditional jobs.
+  # https://github.com/orgs/community/discussions/12395#discussioncomment-12970019
+  # This aggregator and its job name are verbatim orchestration: the name is the
+  # ruleset-bound required status-check context - do NOT rename it.
+  check-workflow-status:
+    name: Check pull request workflow status
+    runs-on: ubuntu-latest
+    needs:
+      [ changes, smoke-build ]
+    if: always()
+    steps:
+      - name: Check workflow results step
+        run: |
+          set -euo pipefail
+          exit_on_result() {
+            if [[ "$2" == "failure" || "$2" == "cancelled" ]]; then
+              echo "Job '$1' failed or was cancelled."
+              exit 1
+            fi
+          }
+          # The changes job MUST succeed - a paths-filter error must not let a
+          # target-changing PR merge with its smoke build silently skipped.
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            echo "Job 'changes' did not succeed (${{ needs.changes.result }}); refusing to pass."
+            exit 1
+          fi
+          # smoke-build may be legitimately skipped (no target changed); only failure/cancelled blocks.
+          exit_on_result "smoke-build" "${{ needs.smoke-build.result }}"
+
+  # Smoke builds gate every release-asset upload on `!smoke`, but actions like docker/build-push-action can still emit
+  # a build-record artifact, so this terminal cleanup deletes the run's artifacts to keep them off the storage quota.
+  # Independent of `check-workflow-status` so housekeeping never gates the required merge check.
+  cleanup-artifacts:
+    name: Delete workflow artifacts job
+    needs: [smoke-build]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete workflow artifacts step
+        # continue-on-error: best-effort housekeeping must never red the run, even on an unexpected failure.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! ids=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts --paginate \
+            --jq '.artifacts[].id'); then
+            echo "::warning::Could not list run artifacts; skipping cleanup (storage may not be freed)."
+            ids=""
+          fi
+          for artifact_id in $ids; do
+            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id" \
+              || echo "::warning::Failed to delete artifact $artifact_id; continuing."
+          done
