@@ -61,6 +61,25 @@ jobs:
 
     steps:
 
+      # Enforce the input contract once so the downstream steps can trust it: the list comes from exactly one source -
+      # `repositories`, the `manifest` + `manifest-jq` pair, or neither (default to this repo). Silent fall-through to the
+      # default would otherwise mask caller mistakes (a half-filled manifest pair, or both sources passed at once).
+      - name: Validate inputs step
+        env:
+          REPOSITORIES: ${{ inputs.repositories }}
+          MANIFEST: ${{ inputs.manifest }}
+          MANIFEST_JQ: ${{ inputs.manifest-jq }}
+        run: |
+          set -euo pipefail
+          if [ -n "$REPOSITORIES" ] && [ -n "$MANIFEST" ]; then
+            echo "::error::Pass either 'repositories' or 'manifest', not both." >&2
+            exit 1
+          fi
+          if { [ -n "$MANIFEST" ] && [ -z "$MANIFEST_JQ" ]; } || { [ -z "$MANIFEST" ] && [ -n "$MANIFEST_JQ" ]; }; then
+            echo "::error::'manifest' and 'manifest-jq' must be set together." >&2
+            exit 1
+          fi
+
       - name: Checkout code step
         # Only the manifest path needs the tree; the static + default paths don't check out.
         if: ${{ inputs.repositories == '' && inputs.manifest != '' }}
@@ -76,9 +95,10 @@ jobs:
           MANIFEST_JQ: ${{ inputs.manifest-jq }}
         run: |
           set -euo pipefail
+          # Inputs validated above: at most one of repositories / manifest is set, and manifest implies manifest-jq.
           if [ -n "$REPOSITORIES" ]; then
             echo "repositories=$REPOSITORIES" >> "$GITHUB_OUTPUT"
-          elif [ -n "$MANIFEST" ] && [ -n "$MANIFEST_JQ" ]; then
+          elif [ -n "$MANIFEST" ]; then
             echo "repositories=$(jq --compact-output "$MANIFEST_JQ" "$MANIFEST")" >> "$GITHUB_OUTPUT"
           else
             # Default to this repo's own Docker Hub repository (lowercased owner/name) so a single-image caller
