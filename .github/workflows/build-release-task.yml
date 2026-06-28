@@ -18,7 +18,7 @@ on:
         required: false
         type: string
         default: ''
-      # Logical branch driving config, tags, and prerelease. Required (see header); the publisher builds both branches.
+      # Logical branch driving config, tags, and prerelease. Required (see header); the publisher passes the run's branch.
       branch:
         required: true
         type: string
@@ -30,7 +30,7 @@ on:
 
 jobs:
 
-  # Validate the branch this leg publishes (lint), gating the build/publish below. Skipped on smoke: the PR runs
+  # Validate the branch being published (lint), gating the build/publish below. Skipped on smoke: the PR runs
   # its own validate job, so a smoke build does not double-validate.
   validate:
     name: Validate job
@@ -46,8 +46,6 @@ jobs:
     secrets: inherit
     with:
       ref: ${{ inputs.ref }}
-      # Pin NBGV's public-release classification to this leg's branch (see get-version-task header).
-      branch: ${{ inputs.branch }}
 
   # Build only when validation passed (success) or was skipped (smoke); never when it failed.
   build-docker:
