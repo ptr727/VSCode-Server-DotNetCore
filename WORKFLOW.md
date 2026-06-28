@@ -127,6 +127,13 @@ specific commit to build it, but consumes the threaded version. `main` (the publ
 `X.Y.<height>-g<sha>`. *Keeps the built image's version label and the release tag in agreement.* NBGV needs
 only `version.json` and git history, so it works although the repo builds no .NET assembly.
 
+NBGV matches `publicReleaseRefSpec` against the `GITHUB_REF` environment variable, **not** the checked-out
+HEAD. On the matrix publisher `GITHUB_REF` is always the dispatch/schedule ref (the default branch), which
+would misclassify the develop leg as a public release (a clean version, risking a `:SemVer2` Docker-tag
+collision with `main`). So `get-version-task` takes the leg's `branch` and pins
+`GITHUB_REF=refs/heads/<branch>` for the NBGV step, making each leg classify against its own branch. *Prevents
+the develop leg publishing a clean (non-prerelease) version.*
+
 ### Validate at entry
 
 A run that carries a cross-input invariant (e.g. `main` must not carry a prerelease suffix) asserts it once

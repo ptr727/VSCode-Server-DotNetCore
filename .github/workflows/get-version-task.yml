@@ -1,12 +1,18 @@
 name: Get version information task
 
-# Run NBGV once and expose the version outputs. The publisher passes an explicit ref per matrix leg so a scheduled
-# run (whose github.ref is always the default branch) still versions develop correctly.
+# Run NBGV once and expose the version outputs. NBGV classifies public-release by GITHUB_REF, not the checked-out
+# branch, so the caller passes the leg's `branch` and this task pins GITHUB_REF to it - otherwise a scheduled or
+# dispatch run (whose github.ref is always the default branch) misclassifies the develop leg as a public release.
 on:
   workflow_call:
     inputs:
       # Git ref to check out / version (empty = caller's default checkout ref).
       ref:
+        required: false
+        type: string
+        default: ''
+      # Logical branch this version belongs to; pins GITHUB_REF so NBGV classifies public-release per leg (see header).
+      branch:
         required: false
         type: string
         default: ''
@@ -50,4 +56,8 @@ jobs:
 
       - name: Run Nerdbank.GitVersioning tool step
         id: nbgv
+        env:
+          # NBGV reads GITHUB_REF (not the checked-out HEAD) for publicReleaseRefSpec. Pin it to the leg's branch
+          # so develop is never misclassified as main's public release on a dispatch/schedule run from main.
+          GITHUB_REF: ${{ inputs.branch != '' && format('refs/heads/{0}', inputs.branch) || github.ref }}
         uses: dotnet/nbgv@705dad19ab067f12f4e9eeaa60812e01edef5d25 # v0.5.2
