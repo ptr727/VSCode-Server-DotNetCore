@@ -4,7 +4,7 @@ Repository conventions for GitHub Copilot (and any other AI agent reading this f
 
 The **canonical guide is [AGENTS.md](../AGENTS.md)** at the repo root - read it first, including the [PR Review Etiquette](../AGENTS.md#pr-review-etiquette) review-loop contract this file's runbook implements. This file is intentionally narrow: commit/PR-title conventions (summarized inline so VS Code's commit-message and PR-title generators have them) plus the GitHub Copilot Review Runbook.
 
-For code-style rules, see [`CODESTYLE.md`](../CODESTYLE.md) at the repo root - one guide with a General section plus per-language sections (.NET, Python).
+For code-style rules, see [`CODESTYLE.md`](../CODESTYLE.md) at the repo root.
 
 Do not duplicate language-specific rules here. **Project-specific conventions and API/behavioral contracts also belong in [AGENTS.md](../AGENTS.md), not here** - this file is intentionally limited to the inline commit/PR-title summary and the GitHub Copilot Review Runbook. Non-Copilot agents (Claude Code, Codex, Cursor, ...) are not directed to this file and don't read it by default, so any rule a reviewer must honor has to live in `AGENTS.md` to be provider-independent.
 
@@ -18,7 +18,7 @@ Summarized for VS Code's generators; the full rules, rationale, and examples are
 
 ## GitHub Copilot Review Runbook
 
-> This runbook implements the [AGENTS.md "PR Review Etiquette"](../AGENTS.md#pr-review-etiquette) review-loop contract for GitHub Copilot. Without it in-repo, an agent has no pointer to the reliable Copilot mechanics and falls back to known-broken paths (the no-op `POST /requested_reviewers`, the wrong bot-login filter). In the API snippets below, fill the `<owner>` / `<repo>` / `<N>` placeholders.
+> This runbook implements the [AGENTS.md "PR Review Etiquette"](../AGENTS.md#pr-review-etiquette) review-loop contract for GitHub Copilot. Without it in-repo, an agent has no pointer to the reliable Copilot mechanics and falls back to known-broken paths (the no-op `POST /requested_reviewers`, the wrong bot-login filter). In the API snippets below, `<N>` is the PR number.
 
 Use this section for provider-specific mechanics. The expected review loop *contract* (request review on every push, verify head-SHA coverage, triage findings, reply + resolve, escalate when stuck) is defined in [AGENTS.md -> PR Review Etiquette](../AGENTS.md#pr-review-etiquette). This section only describes how to make GitHub Copilot reliably execute it.
 
@@ -38,7 +38,7 @@ Auto-review on push is configured (via the branch ruleset's `copilot_code_review
 PR_NODE=$(gh pr view <N> --json id --jq '.id')
 BOT_ID=$(gh api graphql -f query='
 {
-  repository(owner: "<owner>", name: "<repo>") {
+  repository(owner: "ptr727", name: "VSCode-Server-DotNetCore") {
     pullRequest(number: <N>) {
       reviews(first: 50) { nodes { author { __typename login ... on Bot { id } } } }
     }
@@ -56,7 +56,7 @@ mutation($pr: ID!, $bot: ID!) {
 }' -F pr="$PR_NODE" -F bot="$BOT_ID"
 ```
 
-The bot node id is read from an existing Copilot **formal** review (`pullRequest.reviews`), so step 1 needs at least one prior formal review on the PR - the auto-review-on-open normally supplies the first one (it may have **no inline comments**; that still counts, and its bot node id is still readable). Poll for it (give auto-review-on-open a few minutes) before deciding it is missing. If Copilot posted **only an issue comment** and no formal review, the head is covered but `reviews` yields no bot node id - read the id from the Copilot issue comment's author by querying the PR's issue comments in GraphQL (`pullRequest.comments` -> author `... on Bot { id }`), or request `Copilot` once through the GitHub PR UI to produce a formal review. Manual UI seeding is the fallback specifically when no formal review exists to read the id from; then use the mutation for every subsequent re-request.
+The bot node id is read from an existing Copilot **formal** review (`pullRequest.reviews`), so step 1 needs at least one prior formal review on the PR - the auto-review-on-open normally supplies the first one (it may have **no inline comments**; that still counts, and its bot node id is still readable). Poll for it (give auto-review-on-open a few minutes) before deciding it is missing. The Copilot reviewer bot's global node id is `BOT_kgDOCnlnWA` (login `copilot-pull-request-reviewer`) if you need to skip discovery. If Copilot posted **only an issue comment** and no formal review, the head is covered but `reviews` yields no bot node id - read the id from the Copilot issue comment's author by querying the PR's issue comments in GraphQL (`pullRequest.comments` -> author `... on Bot { id }`), or request `Copilot` once through the GitHub PR UI to produce a formal review. Manual UI seeding is the fallback specifically when no formal review exists to read the id from; then use the mutation for every subsequent re-request.
 
 **Do NOT post `@Copilot review` as a PR comment.** That comment triggers the Copilot *coding agent* (`copilot-swe-agent[bot]`), which makes code changes rather than posting a review.
 
@@ -79,7 +79,7 @@ gh pr view <N> --json reviews --jq \
 
 # 2. Issue comment - show the most recent Copilot comment for manual
 #    confirmation. This is the REST API, so the login carries the `[bot]` suffix.
-gh api repos/<owner>/<repo>/issues/<N>/comments --jq \
+gh api repos/ptr727/VSCode-Server-DotNetCore/issues/<N>/comments --jq \
   '[.[] | select(.user.login=="copilot-pull-request-reviewer[bot]")] | last | {created_at, body: .body[:200]}'
 ```
 
@@ -103,7 +103,7 @@ List unresolved threads. Use `first: 100` with cursor-based pagination; if `hasN
 ```sh
 gh api graphql -f query='
 {
-  repository(owner: "<owner>", name: "<repo>") {
+  repository(owner: "ptr727", name: "VSCode-Server-DotNetCore") {
     pullRequest(number: <N>) {
       reviewThreads(first: 100) {
         nodes {
@@ -149,6 +149,4 @@ After the final push, sweep-resolve stale older threads for removed code paths.
 
 ## When in Doubt
 
-Read [AGENTS.md](../AGENTS.md) for this repo's conventions. For code-style rules, [`CODESTYLE.md`](../CODESTYLE.md) (its General section plus the relevant language section) is authoritative. Don't restate any of these files' rules in commit bodies or PR descriptions - keep those focused on the change itself.
-
-**In a derived repo:** if you find a discrepancy that should be fixed in the template itself (this file or AGENTS.md is out of date, a rule is missing, something bit this repo and would bite the next), open an issue upstream in [`ptr727/ProjectTemplate`](https://github.com/ptr727/ProjectTemplate) rather than only fixing it locally - see the template's [AGENTS.md "Staying in Sync and Reporting Drift Upstream"](https://github.com/ptr727/ProjectTemplate/blob/main/AGENTS.md#staying-in-sync-and-reporting-drift-upstream).
+Read [AGENTS.md](../AGENTS.md) for this repo's conventions. For code-style rules, [`CODESTYLE.md`](../CODESTYLE.md) is authoritative. Don't restate any of these files' rules in commit bodies or PR descriptions - keep those focused on the change itself.

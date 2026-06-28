@@ -1,0 +1,16 @@
+{
+  "version": "0.2",
+  "language": "en-US",
+  "words": [
+    "dotnetcore",
+    "linuxserver",
+    "LSIO",
+    "ptr"
+  ],
+  "ignorePaths": [
+    "**/bin/**",
+    "**/obj/**",
+    ".artifacts/**",
+    ".git/**"
+  ]
+}

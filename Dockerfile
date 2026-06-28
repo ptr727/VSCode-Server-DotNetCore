@@ -26,8 +26,7 @@
 FROM lscr.io/linuxserver/code-server:latest
 
 # Image label
-# TODO: Get current LTS and STS versions dynamically
-ARG LABEL_VERSION="70.80"
+ARG LABEL_VERSION="1.0.0.0"
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
     description="VSCode Server with .NET SDK Pre-Installed" \

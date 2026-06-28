@@ -1,9 +1,13 @@
 name: Build Docker image task
 
+# Builds the multi-arch image (linux/amd64,arm64) and, on a main publish, pushes it plus the Docker Hub overview.
+# Branch drives the moving tag: main => `latest`, else `develop`, plus the `:SemVer2` tag. Smoke builds amd64 only
+# and never pushes; registry buildcache is branch-scoped. The orchestrator always passes `branch` (the publisher
+# builds develop from a main-ref run, so a github.ref_name fallback would mistag it).
 on:
   workflow_call:
     inputs:
-      # Input to control whether to push the Docker image to Docker Hub
+      # Push the built image and the Docker Hub overview.
       push:
         required: false
         type: boolean
@@ -13,31 +17,26 @@ on:
         required: false
         type: string
         default: ''
-      # Logical branch driving tags (main => latest, otherwise develop). Required (no
-      # github.ref_name fallback): the publisher builds develop from a main-ref run, so a fallback would mistag it.
+      # Logical branch: main => `latest`, else `develop`. Required (see header).
       branch:
         required: true
         type: string
-      # Smoke mode: build linux/amd64 only (no QEMU/arm64), never push, and skip the shared registry cache-to so PR
-      # builds don't pollute the release buildcache. Used for fast PR feedback.
+      # Smoke: build linux/amd64 only, never push, skip the shared cache-to. Fast PR feedback.
       smoke:
         required: false
         type: boolean
         default: false
+      # Version (SemVer2) from the orchestrator's single NBGV run, threaded so this task does not re-run NBGV on
+      # the detached commit (which could classify the branch differently).
+      semver2:
+        required: true
+        type: string
 
 jobs:
-
-  get-version:
-    name: Get version information job
-    uses: ./.github/workflows/get-version-task.yml
-    secrets: inherit
-    with:
-      ref: ${{ inputs.ref }}
 
   build-docker:
     name: Build Docker image job
     runs-on: ubuntu-latest
-    needs: [get-version]
 
     steps:
 
@@ -46,43 +45,51 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      # QEMU only emulates arm64; smoke builds are amd64-only, so skip it to save setup cost.
+      # QEMU only emulates arm64; smoke is amd64-only, so skip it to save setup cost.
       - name: Setup QEMU step
         if: ${{ !inputs.smoke }}
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
         with:
           platforms: linux/amd64,linux/arm64
 
       - name: Setup Buildx step
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
         with:
           platforms: ${{ inputs.smoke && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
 
-      # Always login (even for smoke) for the higher Docker rate limits on pulls/cache reads; fork PRs without the
-      # secrets can't run the Docker smoke build, acceptable for same-repo PRs.
+      # Always login (even on smoke) for higher pull/cache-read rate limits; the credentials are in both the
+      # Actions and Dependabot secret stores so a Dependabot push CI run can log in too. Forks cannot push here.
       - name: Login to Docker Hub step
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      # Image builds from the LSIO code-server base and installs the .NET SDKs via dotnet-install.sh; only LABEL_VERSION
-      # is consumed (no local source build), so the template's source-build args do not apply.
       - name: Docker build and push step
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           push: ${{ inputs.push }}
           file: ./Dockerfile
           tags: |
             docker.io/ptr727/vscode-server-dotnetcore:${{ inputs.branch == 'main' && 'latest' || 'develop' }}
-            docker.io/ptr727/vscode-server-dotnetcore:${{ needs.get-version.outputs.SemVer2 }}
+            docker.io/ptr727/vscode-server-dotnetcore:${{ inputs.semver2 }}
           platforms: ${{ inputs.smoke && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
-          # Read both branches' caches (near-identical layers) but write only this branch's tag, and only when
-          # pushing, so the weekly main+develop matrix legs don't overwrite one shared cache.
+          # Read both branches' caches (near-identical layers), write only this branch's tag and only when pushing.
+          # mode=max caches the builder layers; ignore-error keeps a cache hiccup from failing a publish.
           cache-from: |
             type=registry,ref=docker.io/ptr727/vscode-server-dotnetcore:buildcache-main
             type=registry,ref=docker.io/ptr727/vscode-server-dotnetcore:buildcache-develop
           cache-to: ${{ inputs.push && format('type=registry,ref=docker.io/ptr727/vscode-server-dotnetcore:buildcache-{0},mode=max,ignore-error=true', inputs.branch) || '' }}
           build-args: |
-            LABEL_VERSION=${{ needs.get-version.outputs.SemVer2 }}
+            LABEL_VERSION=${{ inputs.semver2 }}
+
+      # Push the Docker Hub overview from README.md, main only (one overview, no per-branch context).
+      - name: Update Docker Hub description step
+        if: ${{ inputs.push && inputs.branch == 'main' }}
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          repository: ptr727/vscode-server-dotnetcore
+          readme-filepath: ./README.md
