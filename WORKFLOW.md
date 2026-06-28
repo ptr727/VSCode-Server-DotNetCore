@@ -205,7 +205,7 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
 
 - **D2.1 Validate before publishing.** Output: a dedicated job/step asserts each cross-input invariant and
   fails fast with `::error::` before a publish; downstream jobs `needs:` it.
-- **D2.2 Main matches version classification.** Input: a real (non-smoke) publish leg for `main`. Output: the
+- **D2.2 Main matches version classification.** Input: a real (non-smoke) publish run for `main`. Output: the
   release fails loudly if `main` carries a prerelease suffix. It strips `+buildmetadata` before testing for
   the prerelease `-`. Skipped on smoke. *Prevents a develop build published as the stable `latest`.*
 

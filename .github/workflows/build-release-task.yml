@@ -18,7 +18,7 @@ on:
         required: false
         type: string
         default: ''
-      # Logical branch driving config, tags, and prerelease. Required (see header); the publisher builds both branches.
+      # Logical branch driving config, tags, and prerelease. Required (see header); the publisher passes the run's branch.
       branch:
         required: true
         type: string

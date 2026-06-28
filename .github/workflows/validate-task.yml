@@ -2,7 +2,7 @@ name: Validate task
 
 # The validation gate: lint the docs and workflows (markdownlint, cspell, actionlint). No unit tests or C#
 # formatting - this repo has no compiled code. Reused by test-pull-request (produces the required check) and
-# each publish leg, so the CI and publish gates are identical.
+# the publish run, so the CI and publish gates are identical.
 on:
   workflow_call:
     inputs:
