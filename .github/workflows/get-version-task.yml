@@ -1,0 +1,53 @@
+name: Get version information task
+
+# Run NBGV once and expose the version outputs. The publisher passes an explicit ref per matrix leg so a scheduled
+# run (whose github.ref is always the default branch) still versions develop correctly.
+on:
+  workflow_call:
+    inputs:
+      # Git ref to check out / version (empty = caller's default checkout ref).
+      ref:
+        required: false
+        type: string
+        default: ''
+    outputs:
+      SemVer2:
+        value: ${{ jobs.get-version.outputs.SemVer2 }}
+      AssemblyVersion:
+        value: ${{ jobs.get-version.outputs.AssemblyVersion }}
+      AssemblyFileVersion:
+        value: ${{ jobs.get-version.outputs.AssemblyFileVersion }}
+      AssemblyInformationalVersion:
+        value: ${{ jobs.get-version.outputs.AssemblyInformationalVersion }}
+      # Full SHA NBGV versioned; pins the release tag to the exact built commit, not a moving ref.
+      GitCommitId:
+        value: ${{ jobs.get-version.outputs.GitCommitId }}
+
+jobs:
+
+  get-version:
+    name: Get version information job
+    runs-on: ubuntu-latest
+    outputs:
+      SemVer2: ${{ steps.nbgv.outputs.SemVer2 }}
+      AssemblyVersion: ${{ steps.nbgv.outputs.AssemblyVersion }}
+      AssemblyFileVersion: ${{ steps.nbgv.outputs.AssemblyFileVersion }}
+      AssemblyInformationalVersion: ${{ steps.nbgv.outputs.AssemblyInformationalVersion }}
+      GitCommitId: ${{ steps.nbgv.outputs.GitCommitId }}
+
+    steps:
+
+      - name: Setup .NET SDK step
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: 10.x
+
+      - name: Checkout code step
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Run Nerdbank.GitVersioning tool step
+        id: nbgv
+        uses: dotnet/nbgv@705dad19ab067f12f4e9eeaa60812e01edef5d25 # v0.5.2
