@@ -110,6 +110,14 @@ leg's classification. *Branch-derived config keys off `inputs.branch`, never `gi
 one place a single run touches two branches; the no-cross-branch rule (D0) is scoped to each leg, not the
 matrix.
 
+GitHub resolves a local `uses: ./...` reusable workflow from the **calling run's commit**, not from a leg's
+`ref` input - so on a schedule/dispatch (which runs from the default branch) **both** legs load the reusable
+task *definitions* from the default branch, while each leg's `ref`/`branch` inputs still drive its own
+checkout, version, image, and tag. A change to a workflow *definition* therefore only takes effect in the
+publisher once it reaches the default branch; the per-branch guarantee is over the built *content* (code,
+version, tag), not the orchestration YAML. (`uses:` does not accept an expression for the ref, so the legs
+cannot each load their own branch's definition.)
+
 ### Versioning: compute once per leg, thread everywhere
 
 NBGV runs once per branch leg (in `get-version-task`), classifying from that leg's checkout, and its outputs
@@ -130,8 +138,9 @@ CI runs on push to every branch, so GitHub head-resolves the reusable `./...` wo
 a pull request that edits a reusable task tests its own copy. CI validates (the reusable `validate-task`:
 `lint` only - there is no compiled code) and smoke-builds the image, pushing nothing. One aggregator job, the
 ruleset-bound required check, gates the merge. A branch-deletion push (all-zeros `github.sha`) is skipped by a
-`!github.event.deleted` guard on every job, so a deletion never runs a failing build. Each publish leg reuses
-the **same** `validate-task` on its own branch, so the CI gate and the publish gate are the identical definition.
+`!github.event.deleted` guard on every job, so a deletion never runs a failing build. Each publish leg runs
+`validate-task` against its own branch's checkout (the definition itself is resolved from the publisher's ref;
+see the matrix note above), so the publish gate applies the same lint steps to the branch being published.
 
 ### The single-target release
 
@@ -228,10 +237,13 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
   release-create step is skipped when the tag already exists (refreshed only on `workflow_dispatch`), while
   the Docker push still runs - re-pushing the same tags refreshes the base image. *Prevents duplicate releases
   while still refreshing the image.*
-- **D4.6 Publish is tested as built, per branch.** Output: each publish leg runs the same reusable
-  `validate-task` on its own branch ref (inside `build-release-task`, gated `!smoke`) before building, so a
-  failing lint on either branch blocks only that leg. It is the identical definition CI runs. *Prevents
-  publishing a tree that would fail the CI gate, including the leg whose branch is not the run's trigger ref.*
+- **D4.6 Publish is tested as built, per branch.** Output: each publish leg runs `validate-task` against its
+  own branch ref (inside `build-release-task`, gated `!smoke`) before building, so a failing lint on either
+  branch blocks only that leg. The reusable-task *definition* is resolved from the publisher's ref (the default
+  branch on a schedule; see the matrix note in section 3), so the lint *steps* are the default branch's applied
+  to the published branch's checkout - a workflow-definition change reaches the publisher once it lands on the
+  default branch. *Prevents publishing a tree that would fail the lint gate, including the leg whose branch is
+  not the run's trigger ref.*
 - **D4.7 Docker publishing authenticates with Docker Hub credentials.** Output: the Docker target logs in via
   `docker/login-action` with `DOCKER_HUB_USERNAME` + `DOCKER_HUB_ACCESS_TOKEN` and pushes with
   `docker/build-push-action`; the Docker Hub overview is pushed with the same token. There is no NuGet/OIDC

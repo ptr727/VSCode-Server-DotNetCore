@@ -1,6 +1,6 @@
 # VSCode Server with .NET Pre-Installed
 
-This is a docker image of VSCode Server with the .NET LTS and STS SDK's pre-installed.\
+This is a Docker image of VSCode Server with the .NET LTS and STS SDKs pre-installed.\
 Docker image is based on [LinuxServer.io Code-Server](https://github.com/linuxserver/docker-code-server), which is based on [Coder.com Code-Server](https://github.com/cdr/code-server).\
 
 ## License
@@ -22,7 +22,7 @@ E.g. `docker pull ptr727/vscode-server-dotnetcore:latest`\
 E.g. `docker pull ptr727/vscode-server-dotnetcore:develop`\
 E.g. `docker pull ptr727/vscode-server-dotnetcore:1.1.0`
 
-Builds include the LTS and STS [supported versions](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core) of .NET SDK's.
+Builds include the LTS and STS [supported versions](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core) of .NET SDKs.
 
 Images are automatically rebuilt every Monday morning, picking up the latest upstream updates.\
 ![Docker Pulls](https://img.shields.io/docker/pulls/ptr727/vscode-server-dotnetcore?logo=docker)\
