@@ -1,7 +1,9 @@
 name: Get version information task
 
-# Run NBGV once and expose the version outputs. The caller checks out the branch being published (the run's own
-# ref), so github.ref matches it and NBGV classifies public-release (main) vs prerelease correctly.
+# Run NBGV once and expose the version outputs. Checks out `inputs.ref` (default: the run's ref) and lets NBGV
+# classify public-release from github.ref. Callers are expected to version the branch the run is for - the
+# publisher builds the trigger ref - so github.ref matches the versioned branch and the classification
+# (main = public clean version, any other branch = prerelease) is correct without overriding github.ref.
 on:
   workflow_call:
     inputs:
