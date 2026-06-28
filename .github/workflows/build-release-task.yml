@@ -30,7 +30,7 @@ on:
 
 jobs:
 
-  # Validate the branch this leg publishes (lint), gating the build/publish below. Skipped on smoke: the PR runs
+  # Validate the branch being published (lint), gating the build/publish below. Skipped on smoke: the PR runs
   # its own validate job, so a smoke build does not double-validate.
   validate:
     name: Validate job
