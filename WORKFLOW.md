@@ -81,8 +81,8 @@ Legibility rules. Necessary but not sufficient: a perfectly styled workflow can 
   with the live ruleset.
 - **Concurrency.** Every entry workflow declares a `concurrency` group. CI uses
   `group: '${{ github.workflow }}-${{ github.ref }}'`, `cancel-in-progress: true`. The publisher overrides
-  it: a ref-independent group with `cancel-in-progress: false`, so a `main` and a `develop` publish serialize
-  (they share the Docker Hub overview and registry) and none is cancelled mid-release.
+  it: a ref-independent group with `cancel-in-progress: false`, so two publishes never overlap (a schedule and
+  a manual dispatch, or back-to-back dispatches) and none is cancelled mid-release.
 - **Shells.** Every multi-line bash `run:` starts with `set -euo pipefail`.
 - **Conditionals.** Multi-line `if:` uses the folded scalar `if: >-`.
 - **Boolean inputs.** A boolean used by both `workflow_call` and `workflow_dispatch` is declared in both
@@ -125,11 +125,12 @@ commit to build it, but consumes the threaded version. `main` (the public ref,
 `X.Y.<height>-g<sha>`. *Keeps the built image's version label and the release tag in agreement.* NBGV needs
 only `version.json` and git history, so it works although the repo builds no .NET assembly.
 
-NBGV classifies `publicReleaseRefSpec` from the `GITHUB_REF` environment variable, **not** the checked-out
-HEAD, and `GITHUB_REF` is reserved (a step `env:` cannot reliably override it - the runner re-injects the real
-ref). The nbgv step therefore sets `IGNORE_GITHUB_REF: "true"`, making NBGV ignore `GITHUB_REF` and classify
-from the **checked-out branch** - which here is always the published branch. *Prevents a develop build being
-classified as main's public (clean) version.* The main-version backstop (D2.2) catches any misclassification.
+NBGV classifies `publicReleaseRefSpec` from the `GITHUB_REF` environment variable. Because the publisher builds
+the **trigger ref** (one branch per run), `GITHUB_REF` already equals the branch being versioned - a schedule
+or `main` dispatch classifies as public (clean `X.Y.Z`), a `develop` dispatch as prerelease (`X.Y.Z-g<sha>`) -
+so no `GITHUB_REF` override is needed. (`GITHUB_REF` is reserved and cannot be reliably overridden anyway; the
+matrix publishers that build a non-trigger branch are the ones that need `IGNORE_GITHUB_REF`.) The main-version
+backstop (D2.2) catches any misclassification.
 
 ### Validate at entry
 
@@ -212,8 +213,8 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
 ### D3 - Versioning and classification
 
 - **D3.1 NBGV runs once, threaded.** Output: NBGV runs once, classifying from the checked-out branch; no
-  consumer re-invokes it. The nbgv step sets `IGNORE_GITHUB_REF: "true"` so NBGV classifies from that branch,
-  not the reserved `GITHUB_REF` (which a dispatch run cannot reliably override).
+  consumer re-invokes it. The run builds the trigger ref, so `GITHUB_REF` already matches the branch being
+  versioned and NBGV classifies it correctly (no override needed).
 - **D3.2 `main` = stable, others = prerelease.** Output: `main` -> `X.Y.Z`, any other branch ->
   `X.Y.Z-g<sha>`. The release-version backstop and the GitHub-release `prerelease` expression name `main`;
   `publicReleaseRefSpec` is `^refs/heads/main$`.
@@ -322,7 +323,7 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 
 - **D0:** CI has no branch matrix; the publisher's single `publish` job passes `github.ref_name` as
   `ref`/`branch` and is guarded to `main`/`develop`; NBGV invoked once, every other consumer reads it via
-  `needs:`; the nbgv step sets `IGNORE_GITHUB_REF: "true"`.
+  `needs:`; the run builds the trigger ref so `GITHUB_REF` matches the versioned branch.
 - **D1:** CI runs on `push` with no paths filter; `validate` + `smoke-build` (the Docker target, `smoke: true`)
   run; `lint` runs markdownlint, cspell on README/HISTORY, actionlint; there is no unit-test or CSharpier/
   `dotnet format` step; the aggregator `needs:` both and blocks on non-success.
@@ -354,7 +355,7 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 | S2 | push changing only docs | `validate` (lint checks markdown) + `smoke-build` run; nothing publishes | D1, D1.5 |
 | S3 | push changing only `.github/workflows/**` | `smoke-build` exercises the changed reusable workflow head-resolved; `lint` runs actionlint; aggregator success | D1.1, D6.1 |
 | S4 | weekly `schedule` | builds + publishes `main` only: stable release + refreshed `latest` (multi-arch); `target_commitish` = main's SHA; develop is not touched | D4.1, D4.2, D4.4 |
-| S5 | `workflow_dispatch` from `develop` | builds + publishes `develop`: prerelease `X.Y.Z-g<sha>` + `develop` image; `github.ref` is develop, so NBGV (with `IGNORE_GITHUB_REF`) classifies it non-public | D4.1, D4.2, D3.2 |
+| S5 | `workflow_dispatch` from `develop` | builds + publishes `develop`: prerelease `X.Y.Z-g<sha>` + `develop` image; `github.ref` is develop, so NBGV classifies it non-public | D4.1, D4.2, D3.2 |
 | S6 | `workflow_dispatch` re-run, no new commits | release-create refreshed on dispatch (or skipped if the tag exists on schedule); Docker re-pushed (base refresh); no duplicate release | D4.5 |
 | S7 | `workflow_dispatch` from a feature branch | the `publish` job's `github.ref_name in (main, develop)` guard skips it -> no publish | D4.1 |
 | S8 | merged GitHub-Actions bump | not a shipped input and merges don't publish -> **no release**; ships in the next scheduled run | D4.1, D8.2 |

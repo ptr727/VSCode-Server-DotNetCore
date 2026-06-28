@@ -15,8 +15,8 @@ on:
     # Weekly rebuild/publish of main (Mon 02:00 UTC) to pick up base-image updates.
     - cron: '0 2 * * MON'
 
-# Global, ref-independent group so publishes serialize (shared Docker tags / Hub overview).
-# cancel-in-progress: false so a publish is never cancelled mid-release.
+# Global, ref-independent group so two publishes never overlap (a schedule + a manual dispatch, or back-to-back
+# dispatches). cancel-in-progress: false so a publish is never cancelled mid-release.
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false

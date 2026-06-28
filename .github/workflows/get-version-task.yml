@@ -1,7 +1,7 @@
 name: Get version information task
 
-# Run NBGV once and expose the version outputs. The publisher passes an explicit ref so a run started from a
-# different branch still versions the checked-out branch (see the IGNORE_GITHUB_REF note on the nbgv step).
+# Run NBGV once and expose the version outputs. The caller checks out the branch being published (the run's own
+# ref), so github.ref matches it and NBGV classifies public-release (main) vs prerelease correctly.
 on:
   workflow_call:
     inputs:
@@ -50,10 +50,4 @@ jobs:
 
       - name: Run Nerdbank.GitVersioning tool step
         id: nbgv
-        env:
-          # Version from the checked-out branch, not the CI ref. GITHUB_REF is reserved and a step env can't reliably
-          # override it (the runner re-injects the dispatch ref), so a run started from one branch would otherwise have
-          # NBGV classify against that ref. IGNORE_GITHUB_REF makes NBGV ignore GITHUB_REF and use the checked-out
-          # branch, which is the branch being published. The main-version backstop catches any misclassification.
-          IGNORE_GITHUB_REF: "true"
         uses: dotnet/nbgv@705dad19ab067f12f4e9eeaa60812e01edef5d25 # v0.5.2
