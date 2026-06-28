@@ -118,7 +118,7 @@ main's. There is no definition-vs-content split to reason about.
 
 ### Versioning: compute once, thread everywhere
 
-NBGV runs once (in `get-version-task`), classifying from the checked-out branch, and its outputs (`SemVer2`,
+NBGV runs once (in `get-version-task`), classifying from `github.ref` (see below), and its outputs (`SemVer2`,
 `GitCommitId`) thread to every consumer via `outputs:` / `needs:`. The Docker build checks out a specific
 commit to build it, but consumes the threaded version. `main` (the public ref,
 `publicReleaseRefSpec = ^refs/heads/main$`) builds a clean `X.Y.<height>`; every other branch a prerelease
@@ -127,10 +127,10 @@ only `version.json` and git history, so it works although the repo builds no .NE
 
 NBGV classifies `publicReleaseRefSpec` from the `GITHUB_REF` environment variable. Because the publisher builds
 the **trigger ref** (one branch per run), `GITHUB_REF` already equals the branch being versioned - a schedule
-or `main` dispatch classifies as public (clean `X.Y.Z`), a `develop` dispatch as prerelease (`X.Y.Z-g<sha>`) -
-so no `GITHUB_REF` override is needed. (`GITHUB_REF` is reserved and cannot be reliably overridden anyway; the
-matrix publishers that build a non-trigger branch are the ones that need `IGNORE_GITHUB_REF`.) The main-version
-backstop (D2.2) catches any misclassification.
+or `main` dispatch classifies as public (clean `X.Y.<height>`), a `develop` dispatch as prerelease
+(`X.Y.<height>-g<sha>`) - so no `GITHUB_REF` override is needed. (`GITHUB_REF` is reserved and cannot be
+reliably overridden anyway; the matrix publishers that build a non-trigger branch are the ones that need
+`IGNORE_GITHUB_REF`.) The main-version backstop (D2.2) catches any misclassification.
 
 ### Validate at entry
 
@@ -215,8 +215,8 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
 - **D3.1 NBGV runs once, threaded.** Output: NBGV runs once, classifying from the checked-out branch; no
   consumer re-invokes it. The run builds the trigger ref, so `GITHUB_REF` already matches the branch being
   versioned and NBGV classifies it correctly (no override needed).
-- **D3.2 `main` = stable, others = prerelease.** Output: `main` -> `X.Y.Z`, any other branch ->
-  `X.Y.Z-g<sha>`. The release-version backstop and the GitHub-release `prerelease` expression name `main`;
+- **D3.2 `main` = stable, others = prerelease.** Output: `main` -> `X.Y.<height>`, any other branch ->
+  `X.Y.<height>-g<sha>`. The release-version backstop and the GitHub-release `prerelease` expression name `main`;
   `publicReleaseRefSpec` is `^refs/heads/main$`.
 - **D3.3 Version floor + git height.** Output: `version.json` sets the major.minor floor, NBGV appends the
   git height as the patch, never bumped on a cadence. *(Who raises the floor and when is a human-process rule
@@ -355,7 +355,7 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 | S2 | push changing only docs | `validate` (lint checks markdown) + `smoke-build` run; nothing publishes | D1, D1.5 |
 | S3 | push changing only `.github/workflows/**` | `smoke-build` exercises the changed reusable workflow head-resolved; `lint` runs actionlint; aggregator success | D1.1, D6.1 |
 | S4 | weekly `schedule` | builds + publishes `main` only: stable release + refreshed `latest` (multi-arch); `target_commitish` = main's SHA; develop is not touched | D4.1, D4.2, D4.4 |
-| S5 | `workflow_dispatch` from `develop` | builds + publishes `develop`: prerelease `X.Y.Z-g<sha>` + `develop` image; `github.ref` is develop, so NBGV classifies it non-public | D4.1, D4.2, D3.2 |
+| S5 | `workflow_dispatch` from `develop` | builds + publishes `develop`: prerelease `X.Y.<height>-g<sha>` + `develop` image; `github.ref` is develop, so NBGV classifies it non-public | D4.1, D4.2, D3.2 |
 | S6 | `workflow_dispatch` re-run, no new commits | release-create refreshed on dispatch (or skipped if the tag exists on schedule); Docker re-pushed (base refresh); no duplicate release | D4.5 |
 | S7 | `workflow_dispatch` from a feature branch | the `publish` job's `github.ref_name in (main, develop)` guard skips it -> no publish | D4.1 |
 | S8 | merged GitHub-Actions bump | not a shipped input and merges don't publish -> **no release**; ships in the next scheduled run | D4.1, D8.2 |
@@ -369,7 +369,7 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 - After a `main` publish (schedule or dispatch) confirm a stable release (`isPrerelease == false`, tag plus
   `LICENSE` + `README.md`, no build asset) and a multi-arch `latest` + `:SemVer2`
   (`docker buildx imagetools inspect` shows amd64 + arm64) and the Docker Hub overview matching the root README;
-  after a `develop` dispatch confirm a prerelease `X.Y.Z-g<sha>` + `develop` image. A re-run adds no duplicate
+  after a `develop` dispatch confirm a prerelease `X.Y.<height>-g<sha>` + `develop` image. A re-run adds no duplicate
   release. Absent publish rights, record indeterminate and rely on 5A/5B.
 
 ### 5D. Configuration audit
