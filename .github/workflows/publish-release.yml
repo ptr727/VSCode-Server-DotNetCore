@@ -1,78 +1,40 @@
 name: Publish project release action
 
+# Scheduled + on-demand publisher. The weekly run (and a manual dispatch) builds and publishes BOTH
+# branches in full: multi-arch Docker image + GitHub release (a version anchor). main publishes a stable
+# release (`latest` image), develop a prerelease (`develop` image).
+#
+# Merges do NOT publish: accumulated changes (mostly Dependabot bumps) ship in the next weekly run, and
+# the rebuild also refreshes the base image (lscr.io/linuxserver/code-server) for CVEs. A maintainer
+# dispatches to release on demand. CI/validation runs separately on push (test-pull-request); this
+# workflow never runs on push.
 on:
-  push:
-    branches: [ main, develop ]
   workflow_dispatch:
   schedule:
-    # Weekly full build/publish of both branches. Routine merges only smoke-test; this scheduled run republishes
-    # everything (also refreshing the Docker base image).
+    # Weekly full publish of both branches (Mon 02:00 UTC).
     - cron: '0 2 * * MON'
 
-# Real publishes share one global group so they serialize: they push both branches' shared Docker tags/caches and
-# releases regardless of ref, so a ref-scoped group could double-push. Non-publishing push runs get a unique per-run
-# group so they don't queue behind a real publish.
+# Global, ref-independent group so publishes serialize (shared Docker tags, both-branch releases).
+# cancel-in-progress: false so a publish is never cancelled mid-release.
 concurrency:
-  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || vars.PUBLISH_ON_MERGE == 'true') && github.workflow || format('{0}-noop-{1}', github.workflow, github.run_id) }}
-  # Queue instead of cancel: cancelling a publish mid-flight can leave a partially pushed multi-arch tag set or a
-  # half-created GitHub release.
+  group: ${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
 
-  # Decide which branches to publish and whether to publish at all: push -> only the pushed branch, and only when the
-  # PUBLISH_ON_MERGE variable is true (default two-phase model: merges don't publish); schedule/dispatch -> both
-  # branches.
-  setup:
-    name: Resolve publish plan job
-    runs-on: ubuntu-latest
-    outputs:
-      branches: ${{ steps.plan.outputs.branches }}
-      publish: ${{ steps.plan.outputs.publish }}
-    steps:
-      - name: Compute publish plan step
-        id: plan
-        env:
-          # Repository variable; unset reads as empty string, so the default is the two-phase model.
-          PUBLISH_ON_MERGE: ${{ vars.PUBLISH_ON_MERGE }}
-        run: |
-          set -euo pipefail
-          # Schedule/dispatch builds both branches regardless of triggering ref. A dispatch on a non-default ref
-          # mis-versions the main leg (NBGV can't resolve the public main ref), so fail fast: dispatch from default only.
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" \
-                && "${{ github.ref_name }}" != "${{ github.event.repository.default_branch }}" ]]; then
-            echo "::error::Dispatch publish-release from the default branch (${{ github.event.repository.default_branch }}); the matrix builds both branches. Re-dispatch on the default branch."
-            exit 1
-          fi
-          case "${{ github.event_name }}" in
-            push)
-              branches='["${{ github.ref_name }}"]'
-              if [[ "${PUBLISH_ON_MERGE:-}" == "true" ]]; then
-                publish=true
-              else
-                publish=false
-              fi
-              ;;
-            *)
-              # schedule / workflow_dispatch
-              branches='["main","develop"]'
-              publish=true
-              ;;
-          esac
-          echo "Event=${{ github.event_name }} branches=$branches publish=$publish"
-          echo "branches=$branches" >> "$GITHUB_OUTPUT"
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
-
-  # Full build + publish of every target per planned branch. The matrix lets one run publish main (latest)
-  # and develop (develop) - each leg checks out and versions its own branch via the threaded ref/branch.
+  # Publish each branch in full (Docker + GitHub release). Each leg validates, checks out, and
+  # versions its own branch ref (build-release-task gates the build on its own validate job), so a failing
+  # test or lint on either branch blocks only that leg. The no-op guard skips release creation when the
+  # version is unchanged; the Docker push still refreshes the base image.
   publish:
     name: Publish project release job
-    needs: [setup]
-    if: ${{ needs.setup.outputs.publish == 'true' }}
+    # A dispatch must come from the default branch (main): the publisher builds both branches from their own
+    # refs, but the workflow logic itself resolves from the dispatch ref, so restrict it for predictability.
+    if: ${{ github.event_name == 'schedule' || github.ref_name == 'main' }}
     strategy:
       fail-fast: false
       matrix:
-        branch: ${{ fromJSON(needs.setup.outputs.branches) }}
+        branch: [main, develop]
     uses: ./.github/workflows/build-release-task.yml
     secrets: inherit
     permissions:
@@ -81,58 +43,5 @@ jobs:
       ref: ${{ matrix.branch }}
       branch: ${{ matrix.branch }}
       smoke: false
-      # Push to GitHub and Docker Hub.
       github: true
       dockerhub: true
-      # Docker-only: no release-asset-* files, so the release is just the tag + source zip + README + LICENSE.
-      expect_release_assets: false
-
-  # Caller-gated to main: the badge and Docker Hub overview have no per-branch context, so they update only when main
-  # is among the published branches (a develop-only push skips them). One invocation, not a per-branch matrix leg.
-  date-badge:
-    name: Create BYOB date badge job
-    needs: [setup, publish]
-    if: ${{ needs.setup.outputs.publish == 'true' && contains(fromJSON(needs.setup.outputs.branches), 'main') }}
-    uses: ./.github/workflows/build-datebadge-task.yml
-    secrets: inherit
-    permissions:
-      contents: write
-
-  docker-readme:
-    name: Publish Docker Hub readme job
-    needs: [setup, publish]
-    if: ${{ needs.setup.outputs.publish == 'true' && contains(fromJSON(needs.setup.outputs.branches), 'main') }}
-    uses: ./.github/workflows/publish-docker-readme-task.yml
-    secrets: inherit
-    permissions:
-      contents: read
-    with:
-      ref: main
-      readme-filepath: ./README.md
-
-  # Release artifacts are an intra-run handoff (durable copies live on the GitHub release), so leaving them accumulates
-  # against the small account-wide storage quota; delete them once every consumer has read them.
-  cleanup-artifacts:
-    name: Delete workflow artifacts job
-    needs: [setup, publish, date-badge, docker-readme]
-    if: ${{ always() && needs.setup.outputs.publish == 'true' }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: Delete workflow artifacts step
-        # continue-on-error: best-effort housekeeping must never red the run, even on an unexpected failure.
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if ! ids=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts --paginate \
-            --jq '.artifacts[].id'); then
-            echo "::warning::Could not list run artifacts; skipping cleanup (storage may not be freed)."
-            ids=""
-          fi
-          for artifact_id in $ids; do
-            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id" \
-              || echo "::warning::Failed to delete artifact $artifact_id; continuing."
-          done

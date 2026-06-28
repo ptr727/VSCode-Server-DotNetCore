@@ -1,36 +1,10 @@
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-#
-# Every ecosystem appears **twice**: once with `target-branch: "main"`
-# and once with `target-branch: "develop"`. Dependabot will open
-# parallel PRs against each branch, so both stay current on
-# dependency versions independently of the develop -> main release
-# cadence.
-#
-# Why dual-target and not develop-only:
-# - `develop` is the integration branch and ships content forward to
-#   `main` through merge-commit releases, but the time between releases
-#   can be long.
-# - The Docker image is rebuilt and pushed from `main` directly (weekly
-#   and on release), so `main` must carry current action versions in
-#   the interim rather than waiting for the next develop -> main release.
-#
-# The merge-bot's `case` statement in
-# .github/workflows/merge-bot-pull-request.yml dispatches the merge
-# method per base ref (squash on develop, merge on main) so both bases
-# auto-merge cleanly. `develop` remains strictly forward-only.
-#
-# Security update PRs (CVE-driven) are opened by Dependabot against
-# the repo default branch (`main`) regardless of any `target-branch`
-# config - the `case` statement handles them in the same code path.
-#
-# This repo ships a Docker image only and has no application source, so
-# the template's `nuget` and `uv` ecosystems do not apply - only
-# `github-actions` is carried (see AGENTS.md "Template adaptations").
+# Each ecosystem appears once per branch (main + develop) so both stay current independently; rationale in
+# AGENTS.md "Branching Model". This repo ships a Docker image only, so github-actions is the sole ecosystem.
 version: 2
 updates:
 
-  # ----- github-actions -----
-
+  # main
   - package-ecosystem: "github-actions"
     target-branch: "main"
     directory: "/"
@@ -41,6 +15,7 @@ updates:
         patterns:
           - "*"
 
+  # develop
   - package-ecosystem: "github-actions"
     target-branch: "develop"
     directory: "/"

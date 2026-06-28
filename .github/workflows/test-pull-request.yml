@@ -1,8 +1,17 @@
 name: Test pull request action
 
+# CI for every branch. Runs on push so the reusable tasks resolve from the pushed head: a PR that edits a
+# workflow tests its own copy. validate (lint) and smoke-build run on every push with no paths filter, so a
+# reusable-workflow change is always exercised. The aggregator below is the ruleset required
+# status check, produced here on the head SHA. CI never publishes (the publisher runs on schedule/dispatch).
+#
+# There is deliberately no pull_request trigger: a fork PR cannot push to this repo, so it produces no run
+# and cannot satisfy the required check. A maintainer lands such a contribution on an in-repo branch (which
+# pushes, and so validates) before merging. This is the documented exception (see WORKFLOW.md).
 on:
-  pull_request:
-    branches: [ main, develop ]
+  # All branches, but not tags: release tags must not re-run CI.
+  push:
+    branches: ['**']
   workflow_dispatch:
 
 concurrency:
@@ -11,102 +20,44 @@ concurrency:
 
 jobs:
 
-  # Detect which delivery targets a PR touches so we smoke-build only what changed. Workflow files are excluded
-  # (a path filter can't judge them); workflow_dispatch forces every target on.
-  changes:
-    name: Detect changed targets job
-    runs-on: ubuntu-latest
-    # dorny/paths-filter reads changed files via the API (no checkout), so grant pull-requests: read.
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      docker: ${{ github.event_name == 'pull_request' && steps.filter.outputs.docker || 'true' }}
-    steps:
-      - name: Filter changed paths step
-        id: filter
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        with:
-          filters: |
-            docker:
-              - 'Dockerfile'
-              - '.dockerignore'
-              - 'version.json'
+  # `!github.event.deleted` skips a branch-deletion push (github.sha is all-zeros, so checkout/build fail).
+  # The same lint gate the publisher runs, so the PR gate and the publish gate are identical.
+  validate:
+    name: Validate job
+    if: ${{ !github.event.deleted }}
+    uses: ./.github/workflows/validate-task.yml
 
-  # Build only the changed targets in smoke mode (Docker amd64-only, reduced matrix,
-  # no publishing), in the PR base-branch configuration. Skipped when no target changed.
+  # Build the Docker image to prove it ships, publishing nothing. Docker smoke is amd64-only and seeds from
+  # the branch-scoped cache, so it stays fast.
   smoke-build:
-    name: Smoke build changed targets job
-    needs: [changes]
-    if: >-
-      needs.changes.outputs.docker == 'true'
+    name: Smoke build job
+    if: ${{ !github.event.deleted }}
     uses: ./.github/workflows/build-release-task.yml
     secrets: inherit
     with:
       smoke: true
-      # Do not publish anything from a PR.
+      # Never publish from CI.
       github: false
       dockerhub: false
-      # Check out the PR head by SHA: refs/pull/N/head is reachable in the base repo even for
-      # forks, unlike the head_ref branch name. workflow_dispatch falls back to the triggering ref.
-      ref: ${{ github.event.pull_request.head.sha || github.ref_name }}
-      branch: ${{ github.base_ref || github.ref_name }}
-      enable_docker: ${{ needs.changes.outputs.docker == 'true' }}
+      branch: ${{ github.ref_name }}
 
-  # TODO: GitHub Actions does not support required status checks on conditional jobs.
-  # https://github.com/orgs/community/discussions/12395#discussioncomment-12970019
-  # This aggregator and its job name are verbatim orchestration: the name is the
-  # ruleset-bound required status-check context - do NOT rename it.
+  # Single required status check. Its name is the ruleset-bound context in repo-config/ruleset-*.json. Do
+  # not rename it without updating those in lockstep. Must succeed, not merely not-fail. Skips on a branch
+  # deletion (when validate/smoke-build also skip), so the deletion push does not fail this required check.
   check-workflow-status:
-    name: Check pull request workflow status
+    name: Check pull request workflow status job
     runs-on: ubuntu-latest
-    needs:
-      [ changes, smoke-build ]
-    if: always()
+    needs: [validate, smoke-build]
+    if: ${{ always() && !github.event.deleted }}
     steps:
       - name: Check workflow results step
         run: |
           set -euo pipefail
-          exit_on_result() {
-            if [[ "$2" == "failure" || "$2" == "cancelled" ]]; then
-              echo "Job '$1' failed or was cancelled."
+          for result in "validate:${{ needs.validate.result }}" "smoke-build:${{ needs.smoke-build.result }}"; do
+            name="${result%%:*}"
+            value="${result#*:}"
+            if [[ "$value" != "success" ]]; then
+              echo "::error::Job '$name' did not succeed ($value)."
               exit 1
             fi
-          }
-          # The changes job MUST succeed - a paths-filter error must not let a
-          # target-changing PR merge with its smoke build silently skipped.
-          if [[ "${{ needs.changes.result }}" != "success" ]]; then
-            echo "Job 'changes' did not succeed (${{ needs.changes.result }}); refusing to pass."
-            exit 1
-          fi
-          # smoke-build may be legitimately skipped (no target changed); only failure/cancelled blocks.
-          exit_on_result "smoke-build" "${{ needs.smoke-build.result }}"
-
-  # Smoke builds gate every release-asset upload on `!smoke`, but actions like docker/build-push-action can still emit
-  # a build-record artifact, so this terminal cleanup deletes the run's artifacts to keep them off the storage quota.
-  # Independent of `check-workflow-status` so housekeeping never gates the required merge check.
-  cleanup-artifacts:
-    name: Delete workflow artifacts job
-    needs: [smoke-build]
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: Delete workflow artifacts step
-        # continue-on-error: best-effort housekeeping must never red the run, even on an unexpected failure.
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if ! ids=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts --paginate \
-            --jq '.artifacts[].id'); then
-            echo "::warning::Could not list run artifacts; skipping cleanup (storage may not be freed)."
-            ids=""
-          fi
-          for artifact_id in $ids; do
-            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id" \
-              || echo "::warning::Failed to delete artifact $artifact_id; continuing."
           done
