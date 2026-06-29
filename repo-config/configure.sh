@@ -30,13 +30,18 @@ FAILED=0
 
 ruleset_id() { # name -> id (empty if absent); aborts with a visible reason on an API error
   local out
-  # An absent ruleset is a successful call with no match (empty); only a real API error fails. Diagnose to
-  # stderr (not stdout, which the caller's $(...) would swallow) and return non-zero so the run stops with cause.
-  if ! out="$(gh api "repos/$REPO/rulesets" 2>/dev/null)"; then
-    echo "ERROR: could not list rulesets for $REPO (API error - need admin auth on the repo)" >&2
+  # An absent ruleset is a successful call with no match (empty); only a real API error fails. Let gh print its
+  # own error on stderr (do not suppress it); add a generic context line and return non-zero so the run stops
+  # (the caller's $(...) cannot print the cause itself).
+  # per_page=100 returns every ruleset in one array (a repo has only a handful); the default page size is 30.
+  if ! out="$(gh api "repos/$REPO/rulesets?per_page=100")"; then
+    echo "ERROR: could not list rulesets for $REPO (see gh error above)" >&2
     return 1
   fi
-  jq -r ".[] | select(.name==\"$1\") | .id" <<<"$out" | head -1
+  # shellcheck disable=SC2016  # $n is a jq variable (--arg n), not a shell expansion
+  # Select the first match inside jq (not `| head -1`): under pipefail, head closing the pipe early can
+  # SIGPIPE jq and fail the function.
+  jq -r --arg n "$1" '[.[] | select(.name==$n) | .id] | first // empty' <<<"$out"
 }
 
 apply_ruleset() {
@@ -79,8 +84,12 @@ assert() {
 # caller's. Reads JSON from stdin.
 jq_has() { jq -e "$@" >/dev/null 2>&1; }
 
-# jq_lacks FILTER... - true iff the jq filter selects nothing. Reads JSON from stdin.
-jq_lacks() { ! jq -e "$@" >/dev/null 2>&1; }
+# jq_lacks FILTER... - true iff the jq filter yields no truthy value (selects nothing, or only false/null).
+# `jq -e` exits 1 (last output false/null) or 4 (no output at all) for the "lacks" cases, 0 for a truthy
+# match, and 2/3/5 for a real error (malformed filter or input), which is propagated so the calling assert
+# fails loudly. The `|| rc=$?` keeps jq in a list (exempt from set -e) so a non-zero exit captures rc instead
+# of aborting. Only stdout is discarded - jq's stderr is kept so a real error shows its diagnostic.
+jq_lacks() { local rc=0; jq -e "$@" >/dev/null || rc=$?; case "$rc" in 0) return 1 ;; 1|4) return 0 ;; *) return "$rc" ;; esac; }
 
 check_ruleset() { # name  expected-merge-method  expect-linear(true/false)
   local name="$1" method="$2" linear="$3" id rs
@@ -134,13 +143,14 @@ check_security() {
 
 check_secrets() {
   # --paginate: the secrets endpoints page at 30, so without it a repo with many secrets could miss a
-  # required name and report a false failure. Distinguish an API/auth error (note + skip) from a genuinely
-  # missing secret (FAIL), so a transient failure does not masquerade as every secret being absent.
+  # required name and report a false failure. An API/auth error FAILs fast (the required secrets cannot be
+  # verified, so reporting "matches" would be wrong) - distinct from a genuinely missing secret, which also
+  # FAILs. gh prints its own error (stderr not suppressed) so the cause is actionable.
   local actions deps
-  if ! actions="$(gh api --paginate "repos/$REPO/actions/secrets" --jq '.secrets[].name' 2>/dev/null)"; then
+  if ! actions="$(gh api --paginate "repos/$REPO/actions/secrets" --jq '.secrets[].name')"; then
     fail "could not list Actions secrets (API error - cannot verify required secrets)"; return
   fi
-  if ! deps="$(gh api --paginate "repos/$REPO/dependabot/secrets" --jq '.secrets[].name' 2>/dev/null)"; then
+  if ! deps="$(gh api --paginate "repos/$REPO/dependabot/secrets" --jq '.secrets[].name')"; then
     fail "could not list Dependabot secrets (API error - cannot verify required secrets)"; return
   fi
   for s in "${REQUIRED_ACTIONS_SECRETS[@]}"; do
