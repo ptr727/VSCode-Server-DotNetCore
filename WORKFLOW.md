@@ -342,7 +342,8 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
   identical definition CI runs on the same tree. *Prevents publishing a tree that would fail the lint gate.*
 - **D4.7 Docker publishing authenticates with Docker Hub credentials.** Output: the Docker target logs in via
   `docker/login-action` with `DOCKER_HUB_USERNAME` + `DOCKER_HUB_ACCESS_TOKEN` and pushes with
-  `docker/build-push-action`; the Docker Hub overview is pushed with the same token. There is no NuGet/OIDC
+  `docker/build-push-action`. The Docker Hub repository overview is published separately, main-only, by
+  `publish-docker-readme-task.yml` from `Docker/README.md` using the same credentials. There is no NuGet/OIDC
   publishing in this repo. *Prevents a missing-credential publish failure.*
 - **D4.8 Branch-scoped Docker buildcache.** Output: the Docker build reads both branches' registry caches
   (`buildcache-main`, `buildcache-develop`) and writes only its own branch's cache, only when pushing, so a
@@ -397,8 +398,8 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
 - **D9.3** Bash `run:` blocks start `set -euo pipefail`; multi-line `if:` uses `>-`.
 - **D9.4** Line endings follow `.editorconfig`.
 - **D9.5 No decorative / dropped workflows.** No date-badge (`build-datebadge-*`), no tool-versions task, no
-  separate docker-readme task, no executable/`build-executable-task`, no `PUBLISH_ON_MERGE` variable, no
-  `dorny/paths-filter`. Their presence is a defect to remove.
+  executable/`build-executable-task`, no `PUBLISH_ON_MERGE` variable, no `dorny/paths-filter`. Their presence
+  is a defect to remove.
 - **D9.6** Style is enforced in CI by the `lint` job (D1.3), from the same config files the editor uses.
 
 ### D10 - Repository configuration
@@ -435,8 +436,8 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 - **D7:** the publisher group is ref-independent with `cancel-in-progress: false`; the merge-bot keys on PR
   number; CI uses the standard group; reusable jobs declare permissions.
 - **D8/D9:** the merge-bot runs on `pull_request_target` with the App token, keyed on PR number; Dependabot
-  auto-merge has no semver-major exception; no codegen/upstream-version, date-badge, tool-versions,
-  docker-readme task, executable task, `PUBLISH_ON_MERGE`, or `dorny/paths-filter`; actions SHA-pinned;
+  auto-merge has no semver-major exception; no codegen/upstream-version, date-badge, tool-versions, executable
+  task, `PUBLISH_ON_MERGE`, or `dorny/paths-filter`; actions SHA-pinned;
   names/shells/conditionals per section 2.
 
 ### 5B. End-to-end trace scenarios (deterministic from the YAML)
@@ -460,7 +461,7 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 - Open a trivial-change PR and confirm S1 (the image smoke-builds, nothing pushed, aggregator green).
 - After a `main` publish (schedule or dispatch) confirm a stable release (`isPrerelease == false`, tag plus
   `LICENSE` + `README.md`, no build asset) and a multi-arch `latest` + `:SemVer2`
-  (`docker buildx imagetools inspect` shows amd64 + arm64) and the Docker Hub overview matching the root README;
+  (`docker buildx imagetools inspect` shows amd64 + arm64) and the Docker Hub overview matching `Docker/README.md`;
   after a `develop` dispatch confirm a prerelease `X.Y.<height>-g<sha>` + `develop` image. A re-run adds no duplicate
   release. Absent publish rights, record indeterminate and rely on 5A/5B.
 

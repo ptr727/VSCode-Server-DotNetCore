@@ -41,3 +41,16 @@ jobs:
       smoke: false
       github: true
       dockerhub: true
+
+  # main-only: push the Docker Hub repository overview after a successful publish. One overview, no per-branch
+  # context, so a develop dispatch is a no-op; the task self-gates to main too.
+  docker-readme:
+    name: Publish Docker Hub readme job
+    needs: [publish]
+    if: ${{ github.ref_name == 'main' }}
+    uses: ./.github/workflows/publish-docker-readme-task.yml
+    secrets: inherit
+    permissions:
+      contents: read
+    with:
+      branch: ${{ github.ref_name }}

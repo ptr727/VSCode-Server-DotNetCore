@@ -1,13 +1,14 @@
 name: Build Docker image task
 
-# Builds the multi-arch image (linux/amd64,arm64) and, on a main publish, pushes it plus the Docker Hub overview.
+# Builds the multi-arch image (linux/amd64,arm64) and pushes it on any publish (main or develop). The Docker Hub
+# overview is published separately, main-only, by publish-docker-readme-task.yml.
 # Branch drives the moving tag: main => `latest`, else `develop`, plus the `:SemVer2` tag. Smoke builds amd64 only
 # and never pushes; registry buildcache is branch-scoped. The orchestrator passes `branch` explicitly (the
 # publisher builds one branch per run - the trigger ref - and smoke passes github.ref_name).
 on:
   workflow_call:
     inputs:
-      # Push the built image and the Docker Hub overview.
+      # Push the built image.
       push:
         required: false
         type: boolean
@@ -83,13 +84,3 @@ jobs:
           cache-to: ${{ inputs.push && format('type=registry,ref=docker.io/ptr727/vscode-server-dotnetcore:buildcache-{0},mode=max,ignore-error=true', inputs.branch) || '' }}
           build-args: |
             LABEL_VERSION=${{ inputs.semver2 }}
-
-      # Push the Docker Hub overview from README.md, main only (one overview, no per-branch context).
-      - name: Update Docker Hub description step
-        if: ${{ inputs.push && inputs.branch == 'main' }}
-        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-          repository: ptr727/vscode-server-dotnetcore
-          readme-filepath: ./README.md
