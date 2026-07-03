@@ -164,11 +164,10 @@ target adds a transfer artifact, it MUST set `retention-days: 1` and never blank
 
 ### Self-sufficiency: automatic updates
 
-Every Dependabot pull request auto-merges once the required checks pass (the checks are the safety net),
-except a **semver-major NuGet** bump, which waits for human review - this repo has no NuGet ecosystem, so in
-practice every bump auto-merges; the guard is retained for convergence with the sibling repos. A merged bump
-does not itself publish - it ships in the next weekly publish. There is no codegen and no upstream-version
-tracker. A person steps in only for a breaking change (a red check) or to dispatch a release.
+Every Dependabot pull request auto-merges once the required checks pass - any ecosystem and any tier, semver-major
+included (this repo has only the `github-actions` ecosystem). The required checks are the safety net, not the
+version bump. A merged bump does not itself publish - it ships in the next weekly publish. There is no codegen and
+no upstream-version tracker. A person steps in only for a breaking change (a red check) or to dispatch a release.
 
 ### Flow diagrams
 
@@ -248,9 +247,7 @@ flowchart TD
     DEP(["Dependabot opens PR<br/>any ecosystem (github-actions here)"]):::trig --> MB
     subgraph MBT ["merge-bot-pull-request.yml (pull_request_target, App token)"]
         MB{"event / author"}:::gate
-        MB -- "opened/reopened<br/>dependabot[bot], in-repo branch" --> EV{"semver-major NuGet?"}:::gate
-        EV -- "yes" --> HOLD(["no auto-merge<br/>(human review)"]):::stop
-        EV -- "no" --> EN["enable auto-merge<br/>squash develop / merge main<br/>--delete-branch"]
+        MB -- "opened/reopened<br/>dependabot[bot], in-repo branch" --> EN["enable auto-merge<br/>squash develop / merge main<br/>--delete-branch"]
         MB -- "synchronize by maintainer<br/>on a dependabot branch" --> DIS["disable auto-merge<br/>(idempotent)"]
     end
     EN --> CK{"required checks pass?"}:::gate
@@ -384,10 +381,9 @@ Each is a **MUST**, stated as input -> output plus the failure it prevents.
   checking out its code. Enables auto-merge on `opened`/`reopened`; squash on `develop`, merge-commit on
   `main` by the PR's base ref; disables auto-merge when a maintainer pushes to a bot branch. Concurrency keyed
   on PR number.
-- **D8.2 Dependabot auto-merges on green, semver-major NuGet excepted.** Output: every Dependabot PR
-  auto-merges once the required checks pass, except a semver-major NuGet bump (human review). This repo has no
-  NuGet ecosystem (only `github-actions`), so every bump auto-merges in practice; the guard is retained for
-  convergence with the sibling repos. A failing check blocks the merge. A merged bump does **not** itself
+- **D8.2 Dependabot auto-merges on green, every tier.** Output: every Dependabot PR - any ecosystem,
+  semver-major included - auto-merges once the required checks pass, with no version-tier exception (this repo
+  has only the `github-actions` ecosystem). A failing check blocks the merge. A merged bump does **not** itself
   publish (dependencies are not shipped inputs); it ships in the next weekly publish.
 - **D8.3 No codegen / upstream-version automation.** This repo has neither; the merge-bot carries only
   `merge-dependabot` + `disable-auto-merge-on-maintainer-push`.
@@ -439,7 +435,7 @@ Read the workflow files plus `version.json` and assert the fact behind each appl
 - **D7:** the publisher group is ref-independent with `cancel-in-progress: false`; the merge-bot keys on PR
   number; CI uses the standard group; reusable jobs declare permissions.
 - **D8/D9:** the merge-bot runs on `pull_request_target` with the App token, keyed on PR number; Dependabot
-  auto-merge excepts semver-major NuGet only; no codegen/upstream-version, date-badge, tool-versions,
+  auto-merge has no semver-major exception; no codegen/upstream-version, date-badge, tool-versions,
   docker-readme task, executable task, `PUBLISH_ON_MERGE`, or `dorny/paths-filter`; actions SHA-pinned;
   names/shells/conditionals per section 2.
 
