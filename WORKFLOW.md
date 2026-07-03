@@ -153,8 +153,8 @@ publish gate are the identical definition applied to the same tree.
 pushes multi-arch tags straight to Docker Hub (`latest` for main, `develop` for develop, plus `:SemVer2`). The
 GitHub release is a **version anchor**: it tags the built commit and attaches the in-tree `LICENSE` +
 `README.md` (no build artifact - the image ships to Docker Hub, not the release). The Docker Hub repository
-overview (the root [`README.md`](./README.md)) is pushed on a `main` Docker publish, since Docker Hub does not
-read the GitHub README.
+overview is published separately, main-only, from [`Docker/README.md`](./Docker/README.md) by
+`publish-docker-readme-task.yml`, since Docker Hub does not read the GitHub README.
 
 ### Resource lifecycle
 
