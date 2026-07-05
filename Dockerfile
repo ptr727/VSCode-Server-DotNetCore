@@ -73,7 +73,7 @@ ENV DOTNET_ROOT=/usr/share/dotnet
 # Install .NET LTS and STS versions
 # https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
 # https://github.com/dotnet/install-scripts/blob/main/src/dotnet-install.sh
-RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \ 
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
     && chmod +x ./dotnet-install.sh \
     && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel LTS \
     && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel STS \
