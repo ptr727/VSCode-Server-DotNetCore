@@ -1,0 +1,17 @@
+{
+  "version": "0.2",
+  "language": "en-US",
+  "words": [
+    "dockerhub",
+    "dotnetcore",
+    "linuxserver",
+    "LSIO",
+    "ptr"
+  ],
+  "ignorePaths": [
+    "**/bin/**",
+    "**/obj/**",
+    ".artifacts/**",
+    ".git/**"
+  ]
+}
