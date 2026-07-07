@@ -1,6 +1,6 @@
 name: Build Docker image task
 
-# Builds the multi-arch image (linux/amd64,arm64) and pushes it on any publish (main or develop). The Docker Hub
+# Builds the image (multi-arch on main, amd64 on develop/smoke) and pushes it on any publish (main or develop). The Docker Hub
 # overview is published separately, main-only, by publish-docker-readme-task.yml.
 # Branch drives the moving tag: main => `latest`, else `develop`, plus the `:SemVer2` tag. Smoke builds amd64 only
 # and never pushes; registry buildcache is branch-scoped. The orchestrator passes `branch` explicitly (the
@@ -38,6 +38,9 @@ jobs:
   build-docker:
     name: Build Docker image job
     runs-on: ubuntu-latest
+    env:
+      # Multi-arch (amd64+arm64) only on a full main publish; smoke and develop build amd64 only.
+      PLATFORMS: ${{ (!inputs.smoke && inputs.branch == 'main') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
 
     steps:
 
@@ -46,17 +49,17 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      # QEMU only emulates arm64; smoke is amd64-only, so skip it to save setup cost.
+      # arm64 is non-native on the amd64 runner, so install its QEMU emulator only when the build includes it.
       - name: Setup QEMU step
-        if: ${{ !inputs.smoke }}
+        if: ${{ contains(env.PLATFORMS, 'arm64') }}
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: arm64
 
       - name: Setup Buildx step
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
         with:
-          platforms: ${{ inputs.smoke && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          platforms: ${{ env.PLATFORMS }}
 
       # Always login (even on smoke) for higher pull/cache-read rate limits; the credentials are in both the
       # Actions and Dependabot secret stores so a Dependabot push CI run can log in too. Forks cannot push here.
@@ -75,7 +78,7 @@ jobs:
           tags: |
             docker.io/ptr727/vscode-server-dotnetcore:${{ inputs.branch == 'main' && 'latest' || 'develop' }}
             docker.io/ptr727/vscode-server-dotnetcore:${{ inputs.semver2 }}
-          platforms: ${{ inputs.smoke && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          platforms: ${{ env.PLATFORMS }}
           # Read both branches' caches (near-identical layers), write only this branch's tag and only when pushing.
           # mode=max caches the builder layers; ignore-error keeps a cache hiccup from failing a publish.
           cache-from: |
