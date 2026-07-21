@@ -26,8 +26,7 @@
 FROM lscr.io/linuxserver/code-server:latest
 
 # Image label
-# TODO: Get current LTS and STS versions dynamically
-ARG LABEL_VERSION="70.80"
+ARG LABEL_VERSION="1.0.0.0"
 LABEL name="VSCode-Server-DotNet" \
     version=${LABEL_VERSION} \
     description="VSCode Server with Codex and .NET SDK Pre-Installed" \
@@ -91,7 +90,7 @@ ENV DOTNET_ROOT=/usr/share/dotnet
 # Install .NET LTS and STS versions
 # https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
 # https://github.com/dotnet/install-scripts/blob/main/src/dotnet-install.sh
-RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \ 
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
     && chmod +x ./dotnet-install.sh \
     && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel LTS \
     && ./dotnet-install.sh --install-dir /usr/share/dotnet --version latest --channel STS \

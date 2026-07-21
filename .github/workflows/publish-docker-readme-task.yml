@@ -1,0 +1,34 @@
+name: Publish Docker Hub readme task
+
+on:
+  workflow_call:
+    inputs:
+      # Logical branch this run is for. The overview only updates on `main`;
+      # the publisher passes the branch so a develop leg is a no-op.
+      branch:
+        required: true
+        type: string
+
+jobs:
+
+  publish-docker-readme:
+    name: Publish Docker Hub readme job
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code step
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Check out the branch being published so the main leg pushes main's readme regardless of the triggering ref.
+          ref: ${{ inputs.branch }}
+
+      # Push Docker/README.md as the Docker Hub repository overview, main only (one overview, no per-branch context).
+      - name: Publish Docker Hub readme step
+        if: ${{ inputs.branch == 'main' }}
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          repository: vkhurana/vscode-server-codex-dotnetcore
+          readme-filepath: ./Docker/README.md

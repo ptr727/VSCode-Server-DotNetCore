@@ -1,16 +1,27 @@
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Each ecosystem appears once per branch (main + develop) so both stay current independently; rationale in
+# AGENTS.md "Branching Model". This repo ships a Docker image only, so github-actions is the sole ecosystem.
 version: 2
 updates:
 
   # main
-- package-ecosystem: "github-actions"
-  directory: "/"
-  schedule:
-    interval: "daily"
+  - package-ecosystem: "github-actions"
+    target-branch: "main"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    groups:
+      actions-deps:
+        patterns:
+          - "*"
 
   # develop
-- package-ecosystem: "github-actions"
-  directory: "/"
-  target-branch: "develop"
-  schedule:
-    interval: "daily"
+  - package-ecosystem: "github-actions"
+    target-branch: "develop"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    groups:
+      actions-deps:
+        patterns:
+          - "*"

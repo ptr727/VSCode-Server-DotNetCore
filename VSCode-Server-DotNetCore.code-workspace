@@ -1,13 +1,31 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {
-		"cSpell.words": [
-			"dotnetcore",
-			"LSIO"
-		],
-	}
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "files.trimTrailingWhitespace": true,
+        "[markdown]": {
+            "files.trimTrailingWhitespace": false
+        },
+        "[plaintext]": {
+            "files.trimTrailingWhitespace": false
+        },
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.renderWhitespace": "boundary",
+        "files.encoding": "utf8",
+        "git.alwaysSignOff": true,
+        "markdown.extension.toc.levels": "2..3"
+    },
+    "extensions": {
+        "recommendations": [
+            "davidanson.vscode-markdownlint",
+            "editorconfig.editorconfig",
+            "github.vscode-github-actions",
+            "ms-azuretools.vscode-docker",
+            "streetsidesoftware.code-spell-checker",
+            "yzhang.markdown-all-in-one"
+        ]
+    }
 }
