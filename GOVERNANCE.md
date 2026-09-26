@@ -271,11 +271,10 @@ Every repo's GitHub repository details (the About panel) follow a fixed conventi
 - [`CLAUDE.md`](./CLAUDE.md): imports `AGENTS.md`, since Claude Code reads `CLAUDE.md` and never `AGENTS.md` on its own. Carries no rule of its own.
 - [`GOVERNANCE.md`](./GOVERNANCE.md), [`CODESTYLE.md`](./CODESTYLE.md), [`WORKFLOW.md`](./WORKFLOW.md), [`OPERATIONS.md`](./OPERATIONS.md), [`AUDIT.md`](./AUDIT.md): the governance, operations, and audit docs. This file is the cross-cutting-rules authority.
 - [`Dockerfile`](./Dockerfile): the only build input. It layers the .NET LTS and STS SDKs onto the `lscr.io/linuxserver/code-server:latest` base with `dotnet-install.sh`, installed to `/usr/share/dotnet`. A `main` publish builds it for `linux/amd64` and `linux/arm64`, and a `develop` publish and the CI smoke build for `linux/amd64` only. It takes a single `LABEL_VERSION` build argument, and nothing is compiled from local source.
-- [`Docker/README.md`](./Docker/README.md): the Docker Hub overview, published from the repository by the release workflow.
+- [`Docker/README.md`](./Docker/README.md): the Docker Hub overview, pushed after a `main` publish.
 - [`README.md`](./README.md) and [`HISTORY.md`](./HISTORY.md): the project description and its release history.
 - [`version.json`](./version.json): the NBGV version floor. NBGV derives the build and tag version from it plus git height, and no .NET assembly is produced.
-- [`repo-config/`](./repo-config/): the branch rulesets, settings, and secret audit as code.
-- [`.github/workflows/`](./.github/workflows/): the CI and release workflows, whose contract is [`WORKFLOW.md`](./WORKFLOW.md).
+- [`.github/workflows/`](./.github/workflows/): the CI, release, and merge-bot workflows, whose contract is [`WORKFLOW.md`](./WORKFLOW.md). Each is a thin caller that reaches the hub's reusable tasks by a pinned commit, so this repo carries no task bodies. Repository settings and rulesets are applied from the hub's `repo-config/`.
 - [`.github/skills/`](./.github/skills/): the fleet's Skills, carried verbatim from the hub and never hand-edited here.
 - [`VSCode-Server-DotNetCore.code-workspace`](./VSCode-Server-DotNetCore.code-workspace) and [`.vscode/`](./.vscode/): the VS Code workspace, the primary IDE surface, and its tasks.
 - [`host-tools.json`](./host-tools.json): the host tools this repo needs beyond the fleet declaration.

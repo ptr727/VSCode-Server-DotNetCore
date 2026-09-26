@@ -1,15 +1,8 @@
 name: Test pull request action
 
-# CI for every branch. Runs on push so the reusable tasks resolve from the pushed head: a PR that edits a
-# workflow tests its own copy. validate (lint) and smoke-build run on every push with no paths filter, so a
-# reusable-workflow change is always exercised. The aggregator below is the ruleset required
-# status check, produced here on the head SHA. CI never publishes (the publisher runs on schedule/dispatch).
-#
-# There is deliberately no pull_request trigger: a fork PR cannot push to this repo, so it produces no run
-# and cannot satisfy the required check. A maintainer lands such a contribution on an in-repo branch (which
-# pushes, and so validates) before merging. This is the documented exception (see WORKFLOW.md).
+# Thin caller: the lint gate and the smoke build are the hub's reusable validate-task.yml and build-release-task.yml.
+# CI runs on push to every branch with no paths filter, so a pull request tests its own head, and a fork contribution lands on an in-repo branch before merging.
 on:
-  # All branches, but not tags: release tags must not re-run CI.
   push:
     branches: ['**']
   workflow_dispatch:
@@ -18,32 +11,43 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
 
-  # `!github.event.deleted` skips a branch-deletion push (github.sha is all-zeros, so checkout/build fail).
-  # The same lint gate the publisher runs, so the PR gate and the publish gate are identical.
+  # A branch-deletion push carries an all-zero SHA that nothing can check out, so every job skips it.
   validate:
     name: Validate job
     if: ${{ !github.event.deleted }}
-    uses: ./.github/workflows/validate-task.yml
+    uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@456694681ae76ff162a9bd784b5376901957feae # 2.0.685
+    permissions:
+      contents: read
 
-  # Build the Docker image to prove it ships, publishing nothing. Docker smoke is amd64-only and seeds from
-  # the branch-scoped cache, so it stays fast.
+  # Never publishes and never pushes: smoke builds linux/amd64 only.
   smoke-build:
     name: Smoke build job
     if: ${{ !github.event.deleted }}
-    uses: ./.github/workflows/build-release-task.yml
-    secrets: inherit
+    uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@456694681ae76ff162a9bd784b5376901957feae # 2.0.685
+    permissions:
+      contents: read
+    # The task logs in to Docker Hub on every build for the higher rate limit.
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
     with:
       smoke: true
-      # Never publish from CI.
       github: false
       dockerhub: false
       branch: ${{ github.ref_name }}
+      enable_docker: true
+      enable_dotnet_publish: false
+      enable_nuget: false
+      enable_pypi: false
+      expect_release_assets: false
+      docker_image: ptr727/vscode-server-dotnetcore
 
-  # Single required status check. Its name is the ruleset-bound context in repo-config/ruleset-*.json. Do
-  # not rename it without updating those in lockstep. Must succeed, not merely not-fail. Skips on a branch
-  # deletion (when validate/smoke-build also skip), so the deletion push does not fail this required check.
+  # Required checks cannot bind a conditional job, so this always-run aggregator is the ruleset-bound status check.
+  # Its name is the ruleset context: rename it and the ruleset together.
   check-workflow-status:
     name: Check pull request workflow status job
     runs-on: ubuntu-latest
@@ -52,7 +56,7 @@ jobs:
     steps:
       - name: Check workflow results step
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           for result in "validate:${{ needs.validate.result }}" "smoke-build:${{ needs.smoke-build.result }}"; do
             name="${result%%:*}"
             value="${result#*:}"
