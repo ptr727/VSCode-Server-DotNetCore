@@ -33,12 +33,6 @@ Each language defines a **clean-compile** verification: the combination of build
 
 These apply repo-wide, in every directory: Markdown lints clean via `markdownlint-cli2` against the shared config, spelling is US English via CSpell against the shared `cspell.json`, the CI spelling gate covers `README.md` and `HISTORY.md` only, `HISTORY.md` mirrors the README's opening, and "Markdown" is a proper noun in prose. A repo excluding a subtree of its own that it does not treat as authored prose, a committed data archive, a vendored theme, or a hand-maintained record, puts a `.markdownlint-cli2.jsonc` carrying its own `ignores` beside that content rather than editing the shared root config, whose contents are fleet-fixed. Those `ignores` patterns resolve against the directory holding them rather than against the repo root, so a repo-root-relative entry there matches nothing and reports no error saying so, and excluding through the CI workflow's own negated Markdown glob input instead is a CI-only fix that leaves the same files flagged for anyone running the linter locally. The full rules are in the `comment-and-doc-style` Skill referenced above.
 
-### VSCode-Server-DotNetCore Conventions
-
-*The rules below are this repository's own rather than carried fleet content. They sit on top of the fleet rules above and never loosen them.*
-
-1. **Leave human-authored comments and emojis exactly as written.** Do not reword, trim, reflow, or "clean" them, even where they seem to bend a rule. Revise only agent-authored comments, and match the surrounding voice when you do.
-
 ## .NET
 
 *This section applies only to the .NET side. A repo with no .NET projects still carries it (the file is carried whole) and ignores it.*

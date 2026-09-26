@@ -31,8 +31,6 @@ The first `docker run` opens a shell in the image. The second starts code-server
 
 **Bumping the version floor.** [`version.json`](./version.json) carries the NBGV major.minor floor, and NBGV appends the git height as the patch. Raise the floor only on the maintainer's instruction, for a functional change or a one-time overhaul of the build or release process, in the pull request that introduces it, typically on `develop`. Routine dependency, workflow, and doc changes leave it alone.
 
-**Checking `develop` against `main` before basing work on it.** A fix that lands on `main` outside the `develop -> main` flow, such as a promotion-conflict fix or a security pull request, is mirrored to `develop` by a follow-up pull request that targets `develop`, never by a back-merge. Before basing new work on `develop`, or diagnosing a defect from it, compare content rather than commit history with `git diff origin/main origin/develop`. A hunk with `-` lines and no `+` lines is content `main` holds and `develop` lacks, which is a `main`-only fix `develop` never received. A `-`/`+` pair in one hunk is usually `develop`'s own unpromoted work. A commit-log comparison is noisy here, since it also lists routine promotion merges and the `main`-side bot commits whose content `develop` already carries from its own bot pull requests.
-
 ## Backup and Recovery
 
 ## Logs and Debugging
