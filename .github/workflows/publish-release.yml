@@ -1,56 +1,75 @@
 name: Publish project release action
 
-# Scheduled + on-demand publisher, one run = one branch (the trigger ref). The weekly schedule rebuilds
-# `main` only (refreshing the `latest` image for base-image CVEs); a manual dispatch publishes the branch it
-# is dispatched from (main => stable/`latest`, develop => prerelease/`develop`). Building only the trigger
-# branch keeps github.ref aligned with the branch being versioned, so NBGV classifies it correctly with no
-# matrix and no cross-branch ref leak.
-#
-# Merges do NOT publish: accumulated changes (mostly Dependabot bumps) ship in the next scheduled run, which
-# also refreshes the base image (lscr.io/linuxserver/code-server). To release develop, dispatch this workflow
-# from the develop branch. CI/validation runs separately on push (test-pull-request); this never runs on push.
+# Thin caller: the release chain is the hub's reusable build-release-task.yml, which every release repo reaches rather than carries.
+# Merges do not publish: the weekly schedule rebuilds main to pick up base-image updates, and a dispatch publishes the branch it runs from.
 on:
   workflow_dispatch:
   schedule:
-    # Weekly rebuild/publish of main (Mon 02:00 UTC) to pick up base-image updates.
     - cron: '0 2 * * MON'
 
-# Global, ref-independent group so two publishes never overlap (a schedule + a manual dispatch, or back-to-back
-# dispatches). cancel-in-progress: false so a publish is never cancelled mid-release.
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
+# GITHUB_TOKEN gets no scope by default, and each job below grants only what its hub task writes with.
+permissions: {}
+
 jobs:
 
-  # Publish the trigger branch in full (Docker + GitHub release). The schedule always runs on the default
-  # branch (main); a dispatch runs on whatever branch it is started from. build-release-task validates,
-  # versions, and tags that one branch; the no-op guard skips release creation when the version is unchanged
-  # while the Docker push still refreshes the base image.
+  # Single source of the release-gate decision (publish or not, stable or not), reused by every job below.
+  plan:
+    name: Plan release job
+    uses: ptr727/ProjectTemplate/.github/workflows/publish-plan-task.yml@456694681ae76ff162a9bd784b5376901957feae # 2.0.685
+    with:
+      event_name: ${{ github.event_name }}
+      actor: ${{ github.actor }}
+      ref_name: ${{ github.ref_name }}
+
+  # The same reusable gate CI runs, on the branch tip, running only when a publish will happen.
+  validate:
+    name: Validate job
+    needs: [plan]
+    if: ${{ needs.plan.outputs.publish == 'true' }}
+    uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@456694681ae76ff162a9bd784b5376901957feae # 2.0.685
+    permissions:
+      contents: read
+
   publish:
     name: Publish project release job
-    # Only the long-lived branches publish; a stray dispatch from a feature branch is a no-op.
-    if: ${{ github.ref_name == 'main' || github.ref_name == 'develop' }}
-    uses: ./.github/workflows/build-release-task.yml
-    secrets: inherit
+    needs: [plan, validate]
+    if: ${{ needs.plan.outputs.publish == 'true' && needs.validate.result == 'success' }}
+    uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@456694681ae76ff162a9bd784b5376901957feae # 2.0.685
     permissions:
       contents: write
+      actions: write
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
     with:
-      ref: ${{ github.ref_name }}
+      ref: ${{ github.sha }}
       branch: ${{ github.ref_name }}
       smoke: false
       github: true
       dockerhub: true
+      enable_docker: true
+      enable_dotnet_publish: false
+      enable_nuget: false
+      enable_pypi: false
+      expect_release_assets: false
+      docker_image: ptr727/vscode-server-dotnetcore
 
-  # main-only: push the Docker Hub repository overview after a successful publish. One overview, no per-branch
-  # context, so a develop dispatch is a no-op; the task self-gates to main too.
-  docker-readme:
+  # The task pushes only for main, so a develop publish leaves the one overview untouched.
+  publish-docker-readme:
     name: Publish Docker Hub readme job
-    needs: [publish]
-    if: ${{ github.ref_name == 'main' }}
-    uses: ./.github/workflows/publish-docker-readme-task.yml
-    secrets: inherit
+    needs: [plan, publish]
+    if: ${{ needs.plan.outputs.publish == 'true' && needs.publish.result == 'success' }}
+    uses: ptr727/ProjectTemplate/.github/workflows/publish-docker-readme-task.yml@456694681ae76ff162a9bd784b5376901957feae # 2.0.685
     permissions:
       contents: read
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
     with:
+      ref: ${{ github.sha }}
       branch: ${{ github.ref_name }}
+      repositories: '["ptr727/vscode-server-dotnetcore"]'
