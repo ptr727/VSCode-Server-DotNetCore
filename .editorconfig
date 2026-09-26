@@ -42,10 +42,10 @@ indent_size = 2
 [.github/workflows/*.{yml,yaml}]
 end_of_line = lf
 
-# JSON and JSONC files
 [.github/skills/**]
 end_of_line = lf
 
+# JSON and JSONC files
 [*.{json,jsonc}]
 end_of_line = crlf
 
