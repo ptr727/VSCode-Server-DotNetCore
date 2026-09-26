@@ -1,6 +1,6 @@
 # VSCode-Server-DotNetCore
 
-Docker image of VSCode Server with the .NET LTS and STS SDKs pre-installed.
+This is a Docker image of VSCode Server with the .NET LTS and STS SDKs pre-installed.
 
 ## Release History
 

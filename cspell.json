@@ -6,6 +6,7 @@
     "dotnetcore",
     "linuxserver",
     "LSIO",
+    "Nerdbank",
     "ptr"
   ],
   "ignorePaths": [
