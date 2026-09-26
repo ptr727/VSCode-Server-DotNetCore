@@ -1,518 +1,308 @@
 # WORKFLOW.md
 
-The single guide for this repo's CI/CD **workflows** (GitHub Actions): **code style**, **architecture**, a
-**behavioral contract** (expected inputs and outputs), and a **test methodology**. Source style lives in
-[`CODESTYLE.md`](./CODESTYLE.md). This file covers everything under
-[`.github/workflows/`](./.github/workflows/).
+The guide for CI/CD **workflows** (GitHub Actions): a deliberate mixture of architecture, a **behavioral contract** (expected inputs and outputs), and a **test methodology**, the workflow style rules having their home in `GOVERNANCE.md`. Code style lives in [`CODESTYLE.md`][codestyle]. This file is its sibling for the pipeline those workflows implement, which reaches past `.github/workflows/` to every file and repository setting a guarantee names, `version.json` and a branch ruleset's `context:` string among them.
 
-It **describes required outcomes, not a required implementation.** A workflow is correct when it satisfies
-the contract (section 4), whatever shape its YAML takes. Section 2 keeps workflows legible. Section 3 is
-the model. Section 4 is what they must *do*. Sections 5 and 6 are how to verify it and the configuration it
-assumes. Each guarantee names the **failure it prevents**, so the reason survives a reimplementation.
+Its defining principle: **it describes required outcomes.** Two repos may implement the same guarantee with different YAML wherever that guarantee names no construct, and where one is named, D6.1's `release-asset-<branch>-<target>` and D9.2's ruleset-bound job `name:` among them, matching it **is** the outcome. Section 4 is what a workflow must satisfy, and the verdict below is how that is judged. The style conventions that section 2 points at are part of that contract wherever section 4 states one as a guarantee, and a violation of one that it does is a defect on the same terms as any other.
 
-## 0. The model at a glance
+Given this document and the `GOVERNANCE.md` sections it points at, an agent must be able to do three things to any project:
 
-VSCode-Server-DotNetCore ships **one target**: a **multi-arch Docker image** (Docker Hub) that layers the
-.NET LTS+STS SDKs onto the LinuxServer.io code-server base. There is no compiled code in this repo - the
-Dockerfile is the only build input. Two workflows do the work:
+1. **Audit** - statically check the structural fact each applicable guarantee implies, the style conventions among them (section 5A).
+2. **Test** - trace the expected inputs/outputs (section 5B) and, where warranted, drive a live probe (section 5C).
+3. **Assess** - render a verdict: **operational** (every *applicable* guarantee holds, every *applicable* scenario's predicted output equals the expected, and no 5C probe that was run contradicts either) or **not operational** (any *applicable* mismatch, which is a *defect*).
 
-- **CI** runs on **push to every branch**: it validates (lint) and smoke-builds the image, publishing
-  nothing. A pull request merges only when its required check is green.
-- **The publisher** runs on a **weekly schedule and on manual dispatch** - never on a merge, and builds **one
-  branch per run** (the trigger ref). The **schedule** rebuilds **`main` only** (stable release + refreshed
-  `latest` image, picking up base-image CVEs). A **dispatch** publishes the branch it is started from: from
-  `main` -> stable / `latest`, from `develop` -> prerelease / `develop`. Merges accumulate; the next scheduled
-  run ships main's, and a develop release is cut by dispatching from `develop`.
+> **Canonical scope.** An overlap between this document and `GOVERNANCE.md` resolves **by subject**, never by blanket precedence. This document wins on the applicability and N/A rules (section 1), the pipeline architecture (section 3), the contract (section 4), the test methodology (section 5), and the per-project-type walkthroughs (section 6). `GOVERNANCE.md` wins on the workflow style conventions, at its "Workflow YAML Conventions", which section 2 points at rather than restating; on the release policy, at its "Release Model"; on the branching model, at its "Branching Model"; and on what an operational repo is, at its "Operational Repositories". Section 3 summarizes those last three rather than owning them. Each file names where it defers.
 
-There is no publish-on-merge, no per-push release, and no two-branch matrix - building only the trigger branch
-keeps `github.ref` aligned with the branch being versioned. A maintainer dispatches to release on demand.
-Dependabot pull requests merge themselves once their checks pass.
+The guarantees are distilled from failures observed in practice. Section 4's preamble states how each item is written.
 
-### Glossary
+## 1. Purpose and How to Use This Document
 
-- **Entry workflow** - has `push` / `schedule` / `workflow_dispatch` triggers. The orchestrator that an event or
-  a person starts.
-- **Reusable workflow (task)** - a `workflow_call` workflow invoked through a `uses:` reference, never
-  triggered directly. File ends in `-task.yml`.
-- **Target** - the one shipped output: the **Docker image** (`build-docker-task.yml`).
-  `build-release-task.yml` orchestrates it plus the GitHub release.
-- **Smoke build** - a CI build that builds the image to prove it still ships, publishing and pushing nothing.
-  Driven by a `smoke: true` input.
-- **Version-anchor release** - the GitHub release carries no build artifact: the image itself ships to Docker
-  Hub. The release tags the built commit and attaches the in-tree `LICENSE` + `README.md`, so the tag is
-  browsable and the version is recorded. *(There is no `release-asset` artifact seam - nothing is attached
-  from a build job.)*
-- **Shipped input** - a file that changes what is shipped: the Docker build context (`Dockerfile`, the only
-  build input) or the version floor (`version.json`). GitHub-Actions bumps are **not** shipped inputs - they
-  ship in the next weekly publish, not on merge.
-- **GitHub App token** - a short-lived installation token from `actions/create-github-app-token`, minted
-  from the App credentials (`CODEGEN_APP_CLIENT_ID` / `CODEGEN_APP_PRIVATE_KEY`). The merge-bot uses it, not
-  `GITHUB_TOKEN`: a `GITHUB_TOKEN` push does not trigger downstream workflows, and that token is read-only on
-  Dependabot pull requests.
+- **Contract, not implementation.** Conform to the *outcomes* in section 4. Shape, job names, and file layout may differ between repos wherever no guarantee names them, and where one does, as D9.2 does for the ruleset-bound job `name:`, that name is itself the outcome.
+- **Applicability.** A guarantee, or a 5B scenario, is **applicable** only if the repo contains the construct it governs: a given target, a transfer artifact, a registry push, a wrapper-version source. An item that governs an absent construct is **N/A**: record it as N/A and **exclude it from the verdict**. N/A is never a defect. Section 6 names which constructs each project type adds: start from the constructs every repo has, its pull request workflow among them, **union what every declared type adds**, and record an item N/A only where nothing in that union supplies its construct. Which triggers a construct carries is read from the workflow itself rather than from the type, per section 6. Owning the release task rather than calling the hub-hosted copy changes where a construct's evidence is cited, per 5A, never whether it is applicable. A near-empty pipeline (source-only) is mostly N/A and that is fine.
+- **Operational is binary.** A workflow is operational only where section 5's Assessment records all three of its conjuncts met. A single applicable failure is a defect and makes the workflow **not operational**, whether it is an input/output mismatch or a static property of the committed source such as an unpinned action SHA, regardless of how clean the YAML looks.
+- **Default branch.** Guarantees say "default branch" portably. It is implemented as the literal `main` in several places (the validate gate, the `prerelease` expression, and `version.json`'s `publicReleaseRefSpec`). These MUST all reference the repo's *actual* default branch. A divergence is a defect (D3.2).
+- **Two layers when auditing.** The pipeline splits into an **orchestrator** layer (the PR entry workflow, the publisher, and the version and release jobs) and a **build-leaf** layer (the `build-<target>` tasks, whether separate files or jobs inside the release task). Inputs like `github`/`dockerhub`/`expect_release_assets` live on the orchestrator. A leaf receives `ref`/`branch`/`smoke` and whatever else its own target needs, a derived `push` among them where that leaf pushes. A package target declares no push input on either layer, because section 3's `Output Seam by Destination` puts its push in a `publish-<target>` job in the publisher, gated by `needs:` rather than by a flag. Assert an input a guarantee names in the layer that declares it.
+- **The three verbs.** Audit (static), Test (trace + probe), Assess (verdict). Section 5 gives the exact procedure.
 
-## 1. Purpose and how to use this document
+## 2. Workflow Style Conventions
 
-- **Contract, not implementation.** Conform to the *outcomes* in section 4 and the *architecture* in section
-  3. Job names and file layout may vary; the input/output behavior may not.
-- **"Operational" - the one definition.** The repo is **operational** when every applicable section-4
-  guarantee holds, every applicable section-5B scenario's observed output equals its expected output
-  (corroborated by a 5C live probe where a live signal exists), and the section-6 configuration is in place.
-  Anything else is **not operational**.
-- **Defect vs N/A.** An item is **N/A** only when this repo has no such concern (e.g. a fork-PR scenario,
-  since a fork cannot push here; or a build artifact, since nothing is attached to the release). A construct
-  required by an applicable guarantee but absent is a **defect**.
-- **Default branch is `main`.** Guarantees say "default branch" portably. This repo writes the literal `main`
-  in the prerelease expression and the release-version backstop, and the anchored `^refs/heads/main$` in
-  `version.json`'s `publicReleaseRefSpec`.
-
-## 2. Workflow style conventions
-
-Legibility rules. Necessary but not sufficient: a perfectly styled workflow can still violate section 4.
-
-- **Action pinning.** Pin every action to a commit SHA with a trailing `# vX.Y.Z` comment. Use `# vX` only
-  when the upstream floating major tag has no specific patch SHA. A tool an action *installs* (e.g. the
-  actionlint binary behind `raven-actions/actionlint`) is not a `uses:` ref and is left unpinned to track latest.
-- **Filename.** Reusable workflows end in `-task.yml`; entry workflows end in what they do
-  (`-pull-request.yml`, `-release.yml`). A `-task.yml` is `uses:`-d, never triggered directly.
-- **Workflow `name:`.** Reusable names end in **"task"**, entry names in **"action"**.
-- **Job and step `name:`.** Every job `name:` ends in **"job"**, every step `name:` in **"step"**, the
-  aggregator included (`Check pull request workflow status job`). A job name also bound as a ruleset
-  required-check `context:` is codified in [`repo-config/`](./repo-config/) and changed only **in lockstep**
-  with the live ruleset.
-- **Concurrency.** Every entry workflow declares a `concurrency` group. CI uses
-  `group: '${{ github.workflow }}-${{ github.ref }}'`, `cancel-in-progress: true`. The publisher overrides
-  it: a ref-independent group with `cancel-in-progress: false`, so two publishes never overlap (a schedule and
-  a manual dispatch, or back-to-back dispatches) and none is cancelled mid-release. The merge-bot keys on the PR number with `cancel-in-progress: false` so each PR's events run to completion in order.
-- **Shells.** Every multi-line bash `run:` starts with `set -euo pipefail`.
-- **Conditionals.** Multi-line `if:` uses the folded scalar `if: >-`.
-- **Boolean inputs.** A boolean used by both `workflow_call` and `workflow_dispatch` is declared in both
-  trigger blocks and compared against `true` and `'true'`.
-- **Reusable-workflow permissions.** Job-level `permissions:` are validated before `if:`, so even a skipped
-  job needs valid permissions. Grant least privilege; a callee's extra scope is granted by the caller.
-- **Allowlist `success` and `skipped` explicitly** across an optional dependency: use
-  `(needs.X.result == 'success' || needs.X.result == 'skipped')`, not `!= 'failure'`.
-- **Line endings.** Workflow YAML follows [`.editorconfig`](./.editorconfig) (CRLF). Preserve on every edit.
+`GOVERNANCE.md` "Workflow YAML Conventions" keeps the style rules, and this section points at it rather than restating it. Workflow YAML takes the same line-ending policy as every other file, which `GOVERNANCE.md` "Documentation Style Conventions" routes to under "Line Endings". Read the style rules before editing a workflow. Section 4 carries several of them as guarantees of its own, and where it does, a violation is a defect rather than a nit. They are not sufficient on their own: a perfectly styled workflow can still violate the guarantees they do not cover.
 
 ## 3. Architecture
 
-### Two workflows: CI on push, publishing on schedule/dispatch
+### Branch Model
 
-CI ([`test-pull-request.yml`](./.github/workflows/test-pull-request.yml)) and the publisher
-([`publish-release.yml`](./.github/workflows/publish-release.yml)) are separate workflows with separate
-concurrency, so they never race. CI re-tests every pushed tree and never publishes; the publisher releases
-on its own cadence and never runs on push. *Prevents a merge from silently cutting a release, and a CI run
-from racing a publish on the same ref.*
+Two workflow models, set per repo by the registry `workflowModel` field. `release` (default) is the feature-branch pipeline `WORKFLOW.md` specifies:
 
-### The publisher builds one branch: the trigger ref
+```mermaid
+flowchart LR
+  feature[feature branch] -->|squash| develop
+  develop -->|merge commit| main
+  main -.->|no back-merge| develop
+```
 
-A publish builds exactly **one** branch - the run's trigger ref. The **schedule** always runs on the default
-branch, so it rebuilds `main`; a **dispatch** runs on the branch it is started from (`main` or `develop`). The
-single `publish` job passes `github.ref_name` as both `ref` and `branch`, so the branch built, versioned, and
-tagged is always the run's own ref. *No matrix and no cross-branch ref mixing - `github.ref` is the branch
-being published.* The job is guarded to the long-lived branches (`main` / `develop`); a stray dispatch from a
-feature branch is a no-op. To release `develop`, dispatch the workflow from `develop`.
+`operational` repos (live-service config, `workflowModel: operational`) commit directly to `develop` and promote a known-good snapshot to `main` via an occasional PR:
 
-Because the run's ref **is** the built branch, GitHub resolves the local `uses: ./...` reusable workflows from
-that same branch's commit - so a `develop` dispatch runs develop's own task definitions, and the schedule runs
-main's. There is no definition-vs-content split to reason about.
+```mermaid
+flowchart LR
+  edit[direct signed commit] -->|advisory CI| develop
+  pr[pull request] -->|lint CI, reported not required| develop
+  develop -->|merge commit, enforced lint CI| main
+```
 
-### Versioning: compute once, thread everywhere
+The direct commit is an **allowance, not a substitute for review**. The ruleset drops the pull-request *requirement*, which permits a direct push without withdrawing the pull request, so a change worth reviewing still takes one and both paths reach `develop` legally. Which changes those are is stated as a shape rather than a line count in `GOVERNANCE.md` "Operational Repositories", which owns the test and is the one place it is written, since nothing in a ruleset can apply it. What differs is when validation lands. On the direct-commit path the commit is already on the branch, so CI can only be advisory after the fact, and that is the accepted cost of the model. On the pull-request path the change has not landed, so validation is pre-merge and actionable, which is the moment it is worth the most, and the lint workflow's `pull_request` trigger therefore names `develop` alongside `main` (`WORKFLOW.md` section 6). That is what makes **D1.2** hold here, since its input is *any* PR and the operational model is no exception. The check is reported on a `develop` PR rather than required, because a required status check on `develop` binds the direct push too and would dissolve the allowance the model is built on.
 
-NBGV runs once (in `get-version-task`), classifying from `github.ref` (see below), and its outputs (`SemVer2`,
-`GitCommitId`) thread to every consumer via `outputs:` / `needs:`. The Docker build checks out a specific
-commit to build it, but consumes the threaded version. `main` (the public ref,
-`publicReleaseRefSpec = ^refs/heads/main$`) builds a clean `X.Y.<height>`; every other branch a prerelease
-`X.Y.<height>-g<sha>`. *Keeps the built image's version label and the release tag in agreement.* NBGV needs
-only `version.json` and git history, so it works although the repo builds no .NET assembly.
+Their CI is lint/validation only (editorconfig/EOL plus domain linters such as Home Assistant or ESPHome config validation or a firmware build, but **no unit tests**), so the D-guarantees in `WORKFLOW.md` section 4 that assume a build/test pipeline are **N/A** exactly as for `source-only` (`WORKFLOW.md` section 6). What binds: the promotion gate, where the `develop -> main` PR must pass the required `Check pull request workflow status job`, and the source-only release on manual dispatch (`releaseTrigger: dispatch-only`; tag + source zip). Branch-model rulesets are specified in `GOVERNANCE.md` "Branching Model" rather than in `WORKFLOW.md`.
 
-NBGV classifies `publicReleaseRefSpec` from the `GITHUB_REF` environment variable. Because the publisher builds
-the **trigger ref** (one branch per run), `GITHUB_REF` already equals the branch being versioned - a schedule
-or `main` dispatch classifies as public (clean `X.Y.<height>`), a `develop` dispatch as prerelease
-(`X.Y.<height>-g<sha>`) - so no `GITHUB_REF` override is needed. (`GITHUB_REF` is reserved and cannot be
-reliably overridden anyway; the matrix publishers that build a non-trigger branch are the ones that need
-`IGNORE_GITHUB_REF`.) The main-version backstop (D2.2) catches any misclassification.
+### Two Layers: Orchestration vs Build
 
-### Validate at entry
+- **Orchestration** is generic and forms the standardization baseline **at the job level**: the single-branch publisher, the `get-version`, `validate-release`, and `github-release` jobs, and the `changes -> smoke-build -> aggregator` shape of the PR workflow. These job *bodies* should not need per-repo edits.
+- **Build** is repo-owned in shape: the leaf a target runs. A repo owning its release task hosts its leaves itself. A repo calling the hub-hosted task shapes a leaf through a composite-action hook of its own, which the task runs in place of its hub default where that file exists. For the .NET, NuGet, and PyPI leaves it is `.github/actions/<job>/action.yml`, named for the build job (`dotnet-publish`, `build-nuget`, `build-pypi`). For the Docker leaf it is `.github/actions/docker-prepare/action.yml`, which a `docker_matrix` the caller passes bypasses along with the default. A `docker-build-base` hook, which has no default, builds a shared base layer where the caller sets `docker_build_base`.
+- **What the repo curates** (by design, not a leak): the *list* of targets. A repo calling the hub-hosted release task reaches it by pin and carries no copy, so adding or dropping a target edits the caller's own surface. That is the `enable_<target>` value its publisher passes, the publisher's `on.push.paths` entries where it carries a `push` trigger, and `expect_release_assets` where the change adds the first file target or drops the last (D4.3). It is also the `changes` paths-filter entry + output + the `smoke-build` enable-forward in the PR workflow, plus the separate `publish-<target>` job for a package target. The release task's `enable_*` inputs, its per-target build jobs, and their `github-release` and `build-docker` `needs:` entries belong to the task, so a target the hub task declares no input for is a change to that task first (`WORKFLOW.md` section 6, the `library` row). A repo owning its release task edits those in its own file, where "verbatim" applies to the `github-release` job and the version/publish-plan logic, except that job's own `needs:` list, and never to the task's job list.
 
-A run that carries a cross-input invariant (e.g. `main` must not carry a prerelease suffix) asserts it once
-with `::error::` before any publish. Downstream jobs `needs:` it.
+### The Seam Contract
 
-### Fast CI feedback, head-resolved
+A target contributes a file to the GitHub release by uploading a workflow artifact named `release-asset-<branch>-<target>`. The release job collects **every** matching artifact by **pattern** (`pattern: release-asset-<branch>-*` + `merge-multiple: true`), never an `artifact-ids:` naming one job's output. Canonical for **every** repo, single-target included. Switching to an `artifact-ids:` handoff forks the release download.
 
-CI runs on push to every branch, so GitHub head-resolves the reusable `./...` workflows from the pushed head:
-a pull request that edits a reusable task tests its own copy. CI validates (the reusable `validate-task`:
-`lint` only - there is no compiled code) and smoke-builds the image, pushing nothing. One aggregator job, the
-ruleset-bound required check, gates the merge. A branch-deletion push (all-zeros `github.sha`) is skipped by a
-`!github.event.deleted` guard on every job, so a deletion never runs a failing build. The publisher runs the
-**same** `validate-task` against the branch it publishes (the run's ref is that branch), so the CI gate and the
-publish gate are the identical definition applied to the same tree.
+```mermaid
+flowchart LR
+  dotnet[dotnet-publish] -->|release-asset-BRANCH-dotnet-publish| store[(run artifacts)]
+  nuget[build-nuget] -->|release-asset-BRANCH-nuget| store
+  store -->|pattern + merge-multiple| rel["github-release job (D6)"]
+  nuget -->|nuget-build-BRANCH| pub["publish-TARGET job in the repo's own publisher"]
+  pypi[build-pypi] -->|pypi-build-BRANCH| pub
+  pub -->|push| registries[(registries)]
+  docker[build-docker] -->|push| registries
+```
 
-### The single-target release
+The diagram writes `BRANCH` and `TARGET` where the prose writes `<branch>` and `<target>`, because a mermaid label is sanitized as HTML at render and an angle-bracket placeholder is dropped as an unknown tag. This reaches node labels as well as edge labels, which is why the Release Model diagram below writes `X.Y.Z-g-sha` rather than bracketing its own placeholder.
 
-`build-release-task` versions once, builds the Docker image, and creates the GitHub release. The Docker target
-pushes multi-arch tags straight to Docker Hub (`latest` for main, `develop` for develop, plus `:SemVer2`). The
-GitHub release is a **version anchor**: it tags the built commit and attaches the in-tree `LICENSE` +
-`README.md` (no build artifact - the image ships to Docker Hub, not the release). The Docker Hub repository
-overview is published separately, main-only, from [`Docker/README.md`](./Docker/README.md) by
-`publish-docker-readme-task.yml`, since Docker Hub does not read the GitHub README.
+### Reusable-Task Parameter Contract
 
-### Resource lifecycle
+Every leaf and the release task take `ref`, `branch` (the **logical** branch that drives config/tags/prerelease), and where relevant `smoke`. Branch-derived config keys off `inputs.branch` (the logical branch the caller passes). Artifact names carry the branch.
 
-No job uploads or downloads a workflow artifact: the image ships to Docker Hub and the release attaches files
-straight from the checkout. There is therefore no artifact retention or cleanup to manage. *(If a future
-target adds a transfer artifact, it MUST set `retention-days: 1` and never blanket-delete the run's set.)*
+### Versioning
 
-### Self-sufficiency: automatic updates
+NBGV versions the branch being published. Each run builds a single branch (the trigger ref), so `GITHUB_REF` already names it and NBGV classifies it directly, and no `IGNORE_GITHUB_REF` override is required. The default branch is the public-release ref, so it builds clean `X.Y.Z`. Every other branch builds a prerelease `X.Y.Z-g<sha>`. `version.json`'s `version` is the major.minor floor. NBGV appends the git height as the patch. **NBGV and `version.json` are retained even by a repo with no compiled code**, since they are the source of the release tag (`SemVer2`) and `target_commitish` (`GitCommitId`) and the prerelease classification. The .NET SDK is pulled in only as the versioning toolchain. A package build derives its registry version from the same NBGV outputs: the PyPI version is the `X.Y.Z` core of `SemVer2`, any prerelease or build segment dropped, with a PEP 440 `.dev0` appended on the `develop` branch. A wrapper repo may drive its build/image version from an external committed `name -> version` state file while NBGV still tags the release.
 
-Every Dependabot pull request auto-merges once the required checks pass - any ecosystem and any tier, semver-major
-included (this repo has only the `github-actions` ecosystem). The required checks are the safety net, not the
-version bump. A merged bump does not itself publish - it ships in the next weekly publish. There is no codegen and
-no upstream-version tracker. A person steps in only for a breaking change (a red check) or to dispatch a release.
+### Validate-at-Entry
 
-### Flow diagrams
+When a workflow's inputs carry a cross-input or input-versus-derived-state invariant, assert it **once** in a dedicated entry job/step the downstream jobs `needs:`, failing fast with `::error::` before any build or publish.
 
-Three diagrams trace the architecture above: the pull-request gate, the scheduled/dispatched publisher, and
-the bot automation. They depict the same outcomes that the section 4 contract specifies, drawn from the workflow YAML; if a
-diagram and a guarantee disagree, one of them is a defect. Triggers are blue, gates yellow,
-durable/published outputs green, and stop/skip outcomes red.
+### Resource Lifecycle
 
-**Pull request (CI) - `test-pull-request.yml`.** Every push (no `pull_request` trigger) head-resolves the
-reusable tasks, runs the lint validate gate and a non-publishing amd64 Docker smoke build, and a single
-aggregator produces the ruleset-bound required check (D1, D6).
+Workflow artifacts are an **intra-run handoff** only. Durable copies live on the release/registry. The rule: a transfer artifact handed **between jobs** is deleted by exact name/pattern **at its point of consumption**, the delete is **gated to the half of the consumption whose failure would leave it not yet redundant** (D5.2 names the two halves), and it is **best-effort**. **Every** `upload-artifact` sets `retention-days: 1` as the universal failure-path backstop, so no terminal blanket-delete job is needed. The run is **never** blanket-deleted (`.artifacts[].id`). See D5.
+
+### Fast PR Feedback
+
+PRs validate fast and never publish: a paths-filter smoke-builds only changed targets. A validation job always runs. Smoke builds compile/lint/test but upload nothing and push nothing. One required aggregator gates the merge. See D1.
 
 ```mermaid
 flowchart TD
-    T(["push: every branch<br/>(or workflow_dispatch)<br/>NO pull_request trigger"]):::trig
-    T --> D{"github.event.deleted?"}
-    D -- "yes: branch deletion" --> X(["all jobs + aggregator skip<br/>no failed run, no pending check"]):::stop
-    D -- "no" --> V["validate job<br/>(validate-task.yml)"]
-    D -- "no" --> S["smoke-build job<br/>build-release-task.yml<br/>smoke: true, github: false, dockerhub: false"]
-    subgraph VT ["validate-task.yml (lint only, no compiled code)"]
-        L["lint job<br/>markdownlint, cspell (README, HISTORY),<br/>actionlint"]
-    end
-    V --> VT
-    S --> SB["build-docker job (smoke)<br/>linux/amd64 only, head-resolved<br/>no push, no Docker Hub overview"]
-    VT --> A
-    SB --> A
-    A{"Check pull request workflow status job<br/>validate AND smoke-build succeeded?"}:::gate
-    A -- "yes" --> G(["required check passes<br/>merge unblocked"]):::pub
-    A -- "no" --> R(["required check fails<br/>merge blocked"]):::stop
-    classDef trig fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef gate fill:#fef9c3,stroke:#ca8a04,color:#713f12
-    classDef pub fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef stop fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  pr[pull request] --> ch[changes paths-filter]
+  ch -->|target changed| sb[smoke-build changed targets]
+  ch -->|workflow-only or docs| skip[smoke-build skipped]
+  val[validation job] --> agg["Check pull request workflow status job (D1)"]
+  sb --> agg
+  skip --> agg
+  agg -->|success| ok[merge allowed]
 ```
 
-**Publish - `publish-release.yml` -> `build-release-task.yml`.** There is NO push trigger and merges never
-publish: the publisher runs only on the weekly `schedule` (rebuilding `main` for base-image CVEs) or a
-`workflow_dispatch`. It runs the same lint validate gate, versions once with NBGV, backstops the main
-version, builds and pushes the multi-arch image to Docker Hub, then cuts the version-anchor GitHub release
-(D2, D3, D4).
+### Release Model
+
+Each publish builds a **single branch**, the trigger ref (`main` a release, `develop` a prerelease), so there is no branch matrix and `github.ref` always names the built branch. A **human merge never auto-publishes**: a `plan` job (`publish-plan-task.yml`) decides once, and a job downstream of it either gates on its outputs or inherits the skip through `needs:`. A run publishes on a **code-affecting bot push to `main`** (the App merges every Dependabot/codegen PR, so `github.actor` gates it, and the publisher's own `on.push.paths` list also drops a non-substantive change like an Actions bump), a **manual dispatch** of `main`/`develop`, or a **main-only weekly schedule** (Docker, to refresh the base image). The `push` is main-only, so a develop bot merge publishes nothing (its prerelease comes via dispatch). A **source-only** repo publishes on **dispatch only**. Every release is a tag on the built commit plus a source archive, README, and LICENSE. Targets amend it with `release-asset-*` files, and a registry push contributes none, made by the Docker leaf for an image and by the separate `publish-<target>` job for a package. An unchanged version cuts no second release on a schedule or push trigger, while a dispatch refreshes it (D4.4). Docker re-pushes by design.
 
 ```mermaid
 flowchart TD
-    SCH(["schedule: weekly Mon 02:00 UTC<br/>(rebuilds main only)"]):::trig --> PG
-    WD(["workflow_dispatch<br/>(branch it is started from)"]):::trig --> PG
-    PG{"publish guard<br/>ref in (main, develop)?"}:::gate
-    PG -- "no: feature-branch dispatch" --> PSKIP(["publish skipped (no-op)"]):::stop
-    PG -- "yes" --> RUN
-    subgraph BRT ["build-release-task.yml (github: true, dockerhub: true, smoke: false)"]
-        VAL["validate job<br/>(validate-task.yml, lint)<br/>!smoke"] --> BG
-        GV["get-version job<br/>(get-version-task.yml)<br/>NBGV @master, runs once<br/>SemVer2 + GitCommitId"] --> BG
-        BG{"build-docker gate<br/>get-version success AND<br/>validate success or skipped?"}:::gate
-        BG -- "no" --> BSKIP(["build + publish skip"]):::stop
-        BG -- "yes" --> BD["build-docker job<br/>checkout GitCommitId<br/>multi-arch amd64+arm64"]
-        BD --> DH[("Docker Hub push<br/>tag latest (main) / develop<br/>+ :SemVer2, multi-arch")]:::pub
-        BD --> GR["github-release job<br/>needs get-version + build-docker"]
-        GR --> MV{"branch == main AND<br/>SemVer2 has prerelease '-'?"}:::gate
-        MV -- "yes" --> MVX(["fail ::error::<br/>refuse to publish"]):::stop
-        MV -- "no" --> EX{"tag exists AND<br/>not workflow_dispatch?"}:::gate
-        EX -- "yes" --> NOP(["skip release-create<br/>(no-op republish)"]):::stop
-        EX -- "no" --> REL[("GitHub release (version anchor)<br/>tag = SemVer2 at GitCommitId<br/>LICENSE + README, generated notes<br/>prerelease = branch != main")]:::pub
-    end
-    RUN --> VAL
-    RUN --> GV
-    classDef trig fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef gate fill:#fef9c3,stroke:#ca8a04,color:#713f12
-    classDef pub fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef stop fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  trig[main-only schedule / dispatch / paths-filtered push] --> one[build the one trigger branch]
+  one -->|main| vmain["version X.Y.Z stable (D3)"]
+  one -->|develop| vdev["version X.Y.Z-g-sha prerelease (D3)"]
+  vmain --> relm["github-release + registries: latest (D4)"]
+  vdev --> reld["github-release + registries: prerelease (D4)"]
 ```
 
-**Automation - Dependabot + merge-bot.** There is no codegen. Dependabot opens in-repo bot PRs; the merge-bot
-(`pull_request_target`, App token) enables auto-merge on open and disables it on a maintainer push. A merged
-bump does NOT publish on merge; it ships in the next weekly publisher run above (D8).
+### Output Seam by Destination
 
-```mermaid
-flowchart TD
-    DEP(["Dependabot opens PR<br/>any ecosystem (github-actions here)"]):::trig --> MB
-    subgraph MBT ["merge-bot-pull-request.yml (pull_request_target, App token)"]
-        MB{"event / author"}:::gate
-        MB -- "opened/reopened<br/>dependabot[bot], in-repo branch" --> EN["enable auto-merge<br/>squash develop / merge main<br/>--delete-branch"]
-        MB -- "synchronize by maintainer<br/>on a dependabot branch" --> DIS["disable auto-merge<br/>(idempotent)"]
-    end
-    EN --> CK{"required checks pass?"}:::gate
-    CK -- "yes" --> MRG(["PR merges (App token)"]):::pub
-    CK -- "no" --> BLK(["merge blocked<br/>maintainer notified"]):::stop
-    MRG -. "ships in next weekly run<br/>(merges never publish)" .-> PUBR(["weekly publisher releases"]):::pub
-    classDef trig fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef gate fill:#fef9c3,stroke:#ca8a04,color:#713f12
-    classDef pub fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef stop fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-```
+Pick each output's path by **where the artifact goes**:
 
-## 4. Behavioral contract - expected outcomes
+- **File on the GitHub release** (zip, binary, packaged library): one leaf per output uploading `release-asset-<branch>-<name>`. The repo keeps `expect_release_assets: true` (its default).
+- **Package-registry push** (NuGet, PyPI): the leaf builds and uploads a build artifact (`nuget-build-<branch>` / `pypi-build-<branch>`), and a separate `publish-<target>` job in the **publishing repository's own** publisher consumes it and pushes. Both registries publish through OIDC Trusted Publishing, never a stored API key, and two things put that push outside the leaf. Trusted publishing validates the OIDC token's `job_workflow_ref` claim, which names the workflow the job actually ran from, so a push made from a reusable workflow a *different* repository hosts is rejected at the token exchange, NuGet.org answering `HTTP 401` with `does not start with <owner>/<repo>/.github/workflows/`. That alone rules out a leaf another repository hosts. A leaf this repository hosts clears the claim, and the split still applies to it, because a called job declaring no `permissions:` runs under the calling job's whole grant, so a push anywhere inside the release task would put `id-token: write` on every job in it rather than at the one entry point D7.2 requires. The registered trusted-publishing policy therefore names the publisher, `publish-release.yml`. PyPI additionally gates its publish job behind an environment. NuGet.org binds its policy to the workflow file rather than to an environment and needs none. NuGet's leaf also uploads a `release-asset-*` carrying the package, and PyPI contributes none.
+- **Image-registry push** (Docker): the leaf pushes the default branch multi-arch (amd64+arm64) and any other branch `amd64`-only (arm64 emulation is reserved for the released image), and contributes no `release-asset-*`.
+- **Filesystem on a host the project owns** (a static site, a config tree): the leaf builds the tree, ships it to the host, and contributes no `release-asset-*`. The transport is the repo's own. What the contract fixes is that the deploy is a **separate `workflow_dispatch`** from the release, so a redeploy of an unchanged commit mints no tag and a host rebuild, a rollback, or proving a branch on a non-production environment costs nothing; that its credentials come from a **per-environment GitHub Environment** rather than the repository secret store; and that the deploy ends by asserting **what the host serves** rather than the transport's exit status (D4.6). Retention at the destination is bounded by a declared count with one side recorded as owning the prune, which is the deploy where its credential can observe the destination and the host where that credential is deliberately write-only (D5.6).
+- **No file target via the release task** (Docker-only, PyPI-only, source-only): the release is tag + source zip + README + LICENSE. The caller **MUST pass `expect_release_assets: false`** to the release task. A publisher with file targets retains the default `true`. This setting is caller-specific. The default `true` fails on `fail_on_unmatched_files` when no assets exist. A **source-only** repo also passes every `enable_*` input as false because it has no build leaf (see `WORKFLOW.md` section 6).
 
-Each is a **MUST**, stated as input -> output plus the failure it prevents.
+`WORKFLOW.md` section 3 keeps the architecture, and the `workflow-ci-contract` Skill at `.agents/skills/workflow-ci-contract/references/architecture.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo, carries this section whole as a generated include.
 
-### D0 - Architecture
+## 4. Behavioral Contract: Expected Outcomes
 
-- **D0.1 CI is one run, one branch.** Input: any push. Output: `test-pull-request` builds/validates exactly
-  `github.ref_name` and publishes nothing. *Prevents cross-branch ref mixing in CI.*
-- **D0.2 The publisher builds one branch: the trigger ref.** Output: the `publish` job passes
-  `github.ref_name` as `ref` and `branch`, so it checks out, versions, and tags exactly the run's own branch
-  (the schedule's default branch, or a dispatch's branch). No matrix; the job is guarded to `main`/`develop`.
-  *Prevents cross-branch ref mixing - `github.ref` is the branch being published.*
-- **D0.3 One version, threaded.** Output: NBGV runs once, every consumer reads it via `needs:` outputs; no
-  consumer recomputes it. *Allowed:* checking out a specific commit to build it, and recording the built
-  commit as the release `target_commitish`. *Prevents the image's version diverging from its tag.*
+The required behaviors, organized by domain. Each is a **MUST**, and its `Output:` states what a conforming pipeline is required to hold. An `Output:` may be a behavior a run exhibits, or a property of the committed source such as a SHA-pinned action or a `retention-days:` setting, and the two kinds bind on the same terms. An item may also carry an `Input:`, where the guarantee turns on a particular trigger or state rather than on every run, a *Prevents:*, where the failure it rules out is not evident from the `Output:` itself, and an *Implication:* or a *Note:*, for a consequence and for a caveat. Applicability is `WORKFLOW.md` section 1's rule rather than a label's, so an item scoped to a repository shape says so in its own prose. A workflow that violates any *applicable* guarantee is **not operational**.
 
-### D1 - CI fast feedback
+### D1 - PR Fast-Feedback (Smoke)
 
-- **D1.1 Every push validates and smoke-builds the image.** Output: on any push, the `validate` job (the
-  reusable `validate-task`) and `smoke-build` (the Docker target through `build-release-task` with
-  `smoke: true`) run, no paths filter. *Prevents a reusable-workflow or build break shipping untested.*
-- **D1.2 Smoke builds the image.** Output: `smoke-build` builds the Docker image (amd64 only, seeded from the
-  branch-scoped cache) to prove it still builds; there is no unit-test job (no compiled code to test).
-- **D1.3 Lint enforces the editor checks in CI.** Output: `validate-task`'s `lint` job runs `markdownlint-cli2`,
-  `cspell` on the user-facing docs (README, HISTORY), and `actionlint` (which shellchecks every `run:`). Same
-  checks the editor runs. There is no CSharpier / `dotnet format` step - nothing compiles.
-- **D1.4 Smoke never publishes and never pushes.** Output: a smoke build builds the image but makes no GitHub
-  release, no Docker push, no Docker Hub overview update; every publish step is gated `!smoke` (or `push`). Smoke
-  still logs in to Docker Hub for higher pull/cache-read rate limits, so it does need the Docker Hub secrets (in
-  both the Actions and Dependabot stores); fork-safety rests on a fork being unable to push here, not on
-  withholding the login.
-- **D1.5 One required aggregator gates merge.** Output: a single aggregator job must **succeed** (not merely
-  "not fail"), `needs:` `validate` and `smoke-build`, and blocks on any non-success. Its name is
-  ruleset-bound (D6.2) and must not be renamed. *Prevents a defect merging unverified.*
+- **D1.1 Only changed targets build.** Input: a PR touching some targets. Output: the paths-filter marks exactly those targets and only their smoke builds run. Unchanged targets skip. A repo's own targets MUST each have a filter entry (so a touched target is never silently skipped), and that entry lists paths rather than negating them, so a change matching no entry marks nothing and every smoke build skips. *Prevents: rebuilding everything, and a changed target slipping through unbuilt.*
+- **D1.2 A validation job always runs.** Input: any PR. Output: a validation job runs unconditionally and the aggregator `needs:` it. That job is the caller's own job reaching the reusable validator, named `validate` in every shipped stub, and that name is what the aggregator's `needs:` carries. The validator's internal jobs (`lint`, `unit-test` and `validate` in the hub's `validate-task.yml`) are not addressable from a caller, so a `validate` in a caller's `needs:` list always names the caller's own job rather than the validator's internal one of the same name. The validator detects the tree rather than the repo's language, running the doc and repo gates everywhere, the `dotnet test` path only where a `*Tests*.csproj` project exists, and the `pytest` path only where a root `tests/` directory sits beside a root `pyproject.toml` and a root `uv.lock` or `requirements*.txt`, so a non-.NET repo calls the same one rather than replacing it. A repo whose tests take another shape can run them from its own `.github/actions/validate/action.yml` hook, which the validator runs where that file exists. That hook receives no secret, so a repo whose other-shape tests owe D1.6's coverage upload is one whose validation the validator cannot express. A repo whose validation it cannot express **replaces** the call (not deletes it) with its own validator and re-points the aggregator's `needs:` to the replacement. `smoke-build` `needs:` the `changes` job rather than the validation job, so no second `needs:` moves with it. *Prevents: a PR merging with no validation, or a dangling `needs:` that stops the whole workflow from loading.*
+- **D1.3 Smoke never publishes and never uploads.** Input: `smoke: true`. Output: full compile/lint/test, but no registry/image push, no release, and **no** artifact uploads (every `upload-artifact`, including any aggregation job, is gated on smoke being false, written `!inputs.smoke` at the workflow layer and `inputs.smoke != 'true'` in a composite action, whose inputs are strings). *Prevents: a PR publishing, and orphaned artifacts churning the storage quota.*
+- **D1.4 Workflow-file changes are not smoke-built.** Input: a PR changing only `.github/workflows/**`. Output: the paths-filter marks no target, so smoke-build skips. An inclusion list satisfying D1.1 reaches this by leaving workflow paths out of every target's entry. *Implication: a workflow-only change is not smoke-built, but actionlint still validates it in CI.*
+- **D1.5 One required aggregator gates merge.** Input: any PR. Output: a single aggregator job must **succeed**, run under `if: always()` so a failed or skipped dependency cannot skip the gate itself, `needs:` the validation job, and the `changes` and `smoke-build` jobs too wherever the repo has a smoke build, treat a **skipped** smoke build as pass, and **block** on `failure`/`cancelled`. Its name is ruleset-bound: the job `name:` and the ruleset `context:` are the same string and MUST be renamed together, never independently. *Prevents: a paths-filter error letting a target-changing PR merge unbuilt.*
+- **D1.6 Coverage is reported to Codecov (C# and Python).** Input: a C# or Python repo that has tests for that type. Output: the validation job runs those tests under coverage collection (`dotnet test --coverage --coverage-output-format cobertura --results-directory ./coverage`, leaving `--coverage-output` unset so each test project writes its own report rather than overwriting a shared one, or `pytest --cov-report=xml` over a repo whose own `pyproject.toml` selects what to measure) and a `codecov/codecov-action` step uploads the report, **best-effort** (`continue-on-error` and/or `fail_ci_if_error: false`, so a Codecov outage or an absent token never reds the gate). The Python leg **fails its test step when no report was written**, since `--cov-report=xml` alone selects nothing to measure. The C# leg renames each report to `coverage-<guid>.cobertura.xml` before the upload step reads the directory, `codecov-cli`'s own finder not matching the default name, and a repo owning its validator rather than calling the hub's owes that rename itself. `CODECOV_TOKEN` lives in the repo's **actions** and **dependabot** secret stores, the second because a run triggered by a Dependabot pull request reads the Dependabot store and the upload would otherwise skip silently on every bot pull request. A caller reaching the reusable validator across repositories names the secret it passes (`secrets:` with `CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}`), on its pull request path and its publisher path alike, because `secrets: inherit` is documented for a caller in the same organization or enterprise, which a personal account is not. A call by local path stays inside one repository, where the caller's own store is the one the callee reads, so `secrets: inherit` is available there instead of naming each secret. The repo ships a **`codecov.yml`** setting the project and patch statuses to **`informational: true`** so a coverage delta never gates a pull request (a repo whose quality bar requires a threshold may turn that off), and excluding intentionally-untested, non-shipped code (an example or benchmark project) from the denominator via `ignore`. Coverage output is a build artifact, so `.gitignore` excludes it. The C# invocation runs under **Microsoft.Testing.Platform**, and the runner declaration, package references, and version floor an MTP-based test project needs are `CODESTYLE.md`'s .NET side. The Python invocation needs **`pytest-cov`** and a coverage selector, which are `CODESTYLE.md`'s Python side. N/A for a repo carrying no tests for that type, and for a `lint-only` profile for it (per the hub's `registry/repos.json`). *Prevents: coverage silently going unreported, and a coverage regression blocking an unrelated pull request.*
 
-### D2 - Validation at entry
+### D2 - Input/State Validation at Entry
 
-- **D2.1 Validate before publishing.** Output: a dedicated job/step asserts each cross-input invariant and
-  fails fast with `::error::` before a publish; downstream jobs `needs:` it.
-- **D2.2 Main matches version classification.** Input: a real (non-smoke) publish run for `main`. Output: the
-  release fails loudly if `main` carries a prerelease suffix. It strips `+buildmetadata` before testing for
-  the prerelease `-`. Skipped on smoke. *Prevents a develop build published as the stable `latest`.*
+- **D2.1 Validate before expensive work.** Output: a dedicated entry job/step asserts each cross-input/derived-state invariant and fails fast before builds. Downstream jobs `needs:` it.
+- **D2.2 Release branch matches version classification.** Input: a real (non-smoke) release build. Output: the gate fails loudly if the default branch carries a prerelease suffix **or** a non-default branch carries none. It strips `+buildmetadata` before testing for the prerelease `-` (only a core/prerelease `-` counts), and on a smoke build the **check exits early while the job still reports success** (a detached PR head always versions as prerelease). Read that as the validation being skipped rather than the job, because a job-level `if:` would skip the job itself, and a dependent whose `if:` carries no status-check function, an absent `if:` included, gets the implicit `success()` and skips with it. `validate-release` has such dependents, so a job-level skip there would skip their smoke builds with it. *Prevents: a non-default leg published as stable, a build-metadata false-positive, and the gate blocking every default-base promotion PR.*
+- **D2.3 Publish only from main or develop.** Input: a dispatch publish. Output: a dispatch from any ref other than `main` or `develop` fails fast. *Prevents: cutting a release from an unintended branch.*
+- **D2.4 Mutually-exclusive / paired inputs are validated.** Input: a workflow with either/or or must-pair inputs (e.g. the docker-readme task's `repositories` XOR `manifest`+`manifest-jq`). Output: a half-filled or conflicting combination fails fast. *Prevents: a silent fall-through.*
+- **D2.5 The release gate refuses a branch input git would not accept as a name.** Input: a release task taking a `branch` input, on any run. Output: the gate runs `git check-ref-format --branch` over that value and fails when git rejects it, ahead of D2.2's smoke exit, with an error echoing no part of the value. *Prevents: a `::` or `##[` in a caller's value forming a workflow command wherever a later step prints the branch, on a smoke run as much as on a publish.*
 
-### D3 - Versioning and classification
+### D3 - Versioning and Classification
 
-- **D3.1 NBGV runs once, threaded.** Output: NBGV runs once, classifying from the checked-out branch; no
-  consumer re-invokes it. The run builds the trigger ref, so `GITHUB_REF` already matches the branch being
-  versioned and NBGV classifies it correctly (no override needed).
-- **D3.2 `main` = stable, others = prerelease.** Output: `main` -> `X.Y.<height>`, any other branch ->
-  `X.Y.<height>-g<sha>`. The release-version backstop and the GitHub-release `prerelease` expression name `main`;
-  `publicReleaseRefSpec` is `^refs/heads/main$`.
-- **D3.3 Version floor + git height.** Output: `version.json` sets the major.minor floor, NBGV appends the
-  git height as the patch, never bumped on a cadence. *(Who raises the floor and when is a human-process rule
-  in `AGENTS.md`.)*
+- **D3.1 One branch per run.** Input: a publish triggered on `main` or `develop`. Output: the run builds and versions that one branch, and `github.ref` names it, so NBGV classifies it directly (no `IGNORE_GITHUB_REF`). *Prevents: a cross-branch ref mismatch misclassifying the version.*
+- **D3.2 Default = public, others = prerelease.** Output: default branch -> `X.Y.Z`, and any other -> `X.Y.Z-g<sha>`. Every literal that keys default-branch behavior, `version.json`'s `publicReleaseRefSpec` among them, MUST name the repo's real default branch. The hub-hosted tasks and their default leaves write it as `main`, so a repo calling them has `main` as its default branch.
+- **D3.3 Version floor + git height.** Output: `version.json` sets the major.minor floor. NBGV appends the git height as the patch, and the maintainer moves the version by bumping the floor. NBGV and `version.json` are retained even by a no-compiler repo (they own the tag).
+- **D3.4 Registry versions follow the classification, per registry.** Output: NuGet default = stable, others = prerelease (derived by NuGet.org from the SemVer2 `-g<sha>` suffix on `PackageVersion`, not a flag the workflow sets). PyPI builds from the `X.Y.Z` core of `SemVer2`, any prerelease or build segment dropped, and appends `.dev0` on the `develop` branch only (a two-branch literal, not a generic N-branch rule). The develop build stays `pip install --pre`-selectable, `.dev0` being a PEP 440 development release. *Note: at a shared `version.json` floor, `M.N.P.dev0` sorts below `M.N.P` at equal height, so a develop build does not always lead the stable release. A develop-only floor bump leads on the floor whatever the heights.* *Prevents: a non-default leg published as a release.*
+- **D3.5 Wrapper repos may use an external version.** Output: a repo wrapping an upstream release drives its build/image version from a committed `name -> version` state file, while NBGV still tags the release. *Note: the tracker (the writer) ships without consumer wiring, so a wrapper must wire the leaf to read the state file (e.g. `jq` into the image tag) instead of `SemVer2`. If the leaf still tags off NBGV, the wrapper is not actually pinned to upstream.*
 
-### D4 - Release / publish
+### D4 - Release / Publish
 
-- **D4.1 Publish only on schedule or dispatch - never on push.** Output: `publish-release` triggers are
-  `schedule` (weekly) and `workflow_dispatch` only. There is **no `push` trigger** and no `PUBLISH_ON_MERGE`
-  variable. A merge does not publish. The job is guarded to `github.ref_name` in (`main`, `develop`), so a
-  stray dispatch from a feature branch is a no-op. *Prevents per-merge release churn and a blind
-  publish-on-merge.*
-- **D4.2 A publish builds the one trigger branch in full.** Output: the run builds the Docker image and
-  creates the GitHub release for `github.ref_name` - the schedule rebuilds `main` (stable / `latest`); a
-  dispatch publishes its own branch (`main` stable / `latest`, `develop` prerelease / `develop`). *Prevents a
-  half-published release and cross-branch ref mixing.*
-- **D4.3 Tag the built commit.** Output: the release `target_commitish` is the run's `GitCommitId` (the tip of
-  `github.ref_name`), never a moving branch ref. *Prevents the tag landing on the wrong commit.*
-- **D4.4 Release contents and flag.** Output: each release is a tag on the built commit (a version anchor)
-  plus the auto-generated notes and the in-tree `LICENSE` + `README.md`; `fail_on_unmatched_files` catches a
-  renamed/missing file. The GitHub-release `prerelease` boolean is `inputs.branch != 'main'`. No build
-  artifact is attached; the image pushes `latest`/`develop` + `:SemVer2` multi-arch tags to Docker Hub.
-- **D4.5 No-op republish.** Input: a weekly re-run whose version is unchanged (no new commits). Output: the
-  release-create step is skipped when the tag already exists (refreshed only on `workflow_dispatch`), while
-  the Docker push still runs - re-pushing the same tags refreshes the base image. *Prevents duplicate releases
-  while still refreshing the image.*
-- **D4.6 Publish is tested as built.** Output: the publish runs `validate-task` against the branch it publishes
-  (inside `build-release-task`, gated `!smoke`) before building, so a failing lint blocks the release. The run's
-  ref **is** the published branch, so the reusable-task definitions resolve from that branch - it is the
-  identical definition CI runs on the same tree. *Prevents publishing a tree that would fail the lint gate.*
-- **D4.7 Docker publishing authenticates with Docker Hub credentials.** Output: the Docker target logs in via
-  `docker/login-action` with `DOCKER_HUB_USERNAME` + `DOCKER_HUB_ACCESS_TOKEN` and pushes with
-  `docker/build-push-action`. The Docker Hub repository overview is published separately, main-only, by
-  `publish-docker-readme-task.yml` from `Docker/README.md` using the same credentials. There is no NuGet/OIDC
-  publishing in this repo. *Prevents a missing-credential publish failure.*
-- **D4.8 Branch-scoped Docker buildcache.** Output: the Docker build reads both branches' registry caches
-  (`buildcache-main`, `buildcache-develop`) and writes only its own branch's cache, only when pushing, so a
-  `main` and a `develop` publish never overwrite each other's cache. *Prevents one branch's publish destroying
-  the other's cache hit-rate.*
+- **D4.1 Gated single-branch publish.** Output: PRs smoke-test and publish nothing. A **human merge never auto-publishes**. A `plan` job (`publish-plan-task.yml`) decides once. A job downstream of it either gates on the plan's outputs or inherits the skip through `needs:`. A gate on an output compares it against `'true'` rather than testing it bare, since a job output is always a string. A publish runs on a **code-affecting bot push to `main`** (gated to the codegen App / Dependabot `github.actor`, with an Actions-only bump matching no release path and publishing nothing), a **dispatch** of `main`/`develop`, or a **main-only weekly schedule** (Docker). A source-only repo publishes on dispatch only. Each run builds one branch.
+- **D4.2 Tag the built commit.** Output: the release `target_commitish` is the built commit's SHA (NBGV's `GitCommitId`), never a branch name or a separately re-resolved ref. *Prevents: the tag landing on the default branch instead of the built tree.*
+- **D4.3 Release contents.** Output: every release contains a tag on the built commit plus the auto source zip, README, and LICENSE. File targets attach `release-asset-*`. The `prerelease` value equals `branch != default`. A no-file-target caller sets `expect_release_assets: false` to reach the no-asset shape. This applies to Docker-only, PyPI-only, and source-only repos. A NuGet target is not among them, since its leaf uploads a `release-asset-*` carrying the package, so a NuGet-only caller keeps the default `true`. The setting relaxes `fail_on_unmatched_files` and skips the asset download. The release-create step fails when no assets exist and the setting retains its default `true`. A source-only caller also sets every `enable_*` input false.
+- **D4.4 No-op republish.** Input: a re-run whose version is unchanged, on a schedule or push trigger. Output: no second release is cut, because the release-create step is skipped when `gh release view` finds a release for the tag, and the paired asset-delete is skipped with it. A **dispatch** re-run refreshes the release instead and runs that delete with it, which is why a dispatch-only publisher records this item's skip leg as unreachable rather than failed. Package-registry pushes are no-ops. The NuGet/PyPI publish steps are **not** statically gated on existence. They run and the **server** dedupes (`dotnet nuget push --skip-duplicate` turns a 409 into success, and PyPI does the same under `skip-existing: true`). **Docker always re-pushes** the image (base-image refresh), independently of the release-create skip, within the same run. *Prevents: duplicate releases and wasted pushes.*
+- **D4.5 A build failure blocks every publish target, within the Docker limit below.** Input: a real publish where one enabled build fails. Output: nothing publishes. The limit: where a Docker target builds a shared base or more than one image, its task pushes the base and each image leg as it builds, so a leg failing after the base or a sibling leg pushed leaves those images in the registry with no release. `github-release` needs every build and carries the same `!failure() && !cancelled()` guard the terminal registry pusher (Docker) does, since the implicit `success()` would otherwise skip both on every run that disables a target rather than only on a failed one. A failed build therefore skips the release (no tag, no release), and Docker, which needs every other build, skips with it (no image push), while a **disabled** target, skipped rather than failed, still lets docker push. A package target's separate publish job needs its own gate for the same reason, since it sits outside the `github-release` and Docker `needs:` chains: it `needs:` the release-task call, so a failed build skips it with the rest. The push itself is what no gate can cover, because it runs after the whole release task and therefore after `github-release`, for the trusted-publishing reason `WORKFLOW.md` section 3's "Output Seam by Destination" package-registry bullet gives, so a rejected token exchange, a registry outage, or a trusted-publishing policy naming the wrong workflow file leaves a published release and tag for a version that never reached the registry. The recovery is a re-dispatch or a full re-run rather than a cleanup. **A full re-run is always available inside its window and is the only route once the branch tip has moved.** The `Re-run failed jobs` shortcut is not a third route here, D5.2's delete having already removed the artifact it would download. `GOVERNANCE.md` "Release Model", and the skill it routes to, carry the mechanics of each route, how to choose, and the window. *Prevents: a partial publish, e.g. a Docker image pushed while .NET publish failed and no release was cut.*
+- **D4.6 Deploy verification names the release.** Input: a deploy to a filesystem on a host the project owns that completes without error. Output: a check against the running host asserts **which release is answering**, not merely that it answers. The artifact stamps its own version into the configuration it ships, and the check compares that against the version just installed, **waiting for convergence to a bounded timeout** rather than sampling once, because content goes live the instant a pointer moves while server rules wait on an asynchronous reload. The same check asserts **which environment** answered, since several environments serve a byte-identical artifact and a proxy rule aimed at the wrong one answers healthily under the right hostname. An unreachable host is reported distinctly from an HTTP status. *Prevents: a green deploy over a host still serving the previous release's configuration, a URL contract checked against the wrong environment, and a dead config watcher read as a routing fault.*
 
-### D5 - Resource cleanup
+### D5 - Resource Cleanup
 
-- **D5.1 No transfer artifacts.** No job uploads or downloads a workflow artifact: the image ships to Docker
-  Hub and the release attaches `LICENSE` + `README.md` straight from the checkout. There is nothing to retain
-  or clean up. *(N/A unless a future target adds an artifact, which MUST then set `retention-days: 1` and
-  never blanket-delete the run's set.)*
+- **D5.1 Delete at the point of consumption.** Output: the job that downloads a **cross-job** transfer artifact deletes it (by exact name/pattern) right after consuming it. *Prevents: transfer artifacts accumulating against the storage quota.*
+- **D5.2 Gate the delete by the kind of consumer it follows.** Output: where the consumer is a conditional step (the GitHub release create), the delete carries that same condition, narrowed by `inputs.expect_release_assets`. Where the consumer is a step that always attempts once its job runs (a package publish job's push), the delete is gated on the **download** having succeeded rather than on the push, as `if: ${{ !cancelled() && steps.<download-step-id>.outcome == 'success' }}`. A step whose `if:` carries no status-check function, an absent `if:` included, inherits `success()` instead, which skips it on exactly the failed push where the artifact is already downloaded and the release is already cut. So on a no-op re-run that is not a dispatch the `release-asset-*` delete is **skipped** with the release create it follows, while the `nuget-build-*` and `pypi-build-*` deletes still **run**. A dispatch re-run refreshes the release instead (D4.4), so its asset delete runs with it. Deleting the `nuget-build-*` or `pypi-build-*` artifact on the failed-push path costs the run its **Re-run failed jobs** route, since the re-run's download then finds nothing, so the recovery for a failed push is one of the two routes D4.5 names, and `GOVERNANCE.md` "Release Model", with the skill it routes to, sets out how far that cost actually reaches. *Prevents: deleting freshly built assets on a no-op re-run, and stranding a downloaded artifact when the push it fed fails.*
+- **D5.3 Best-effort.** Output: cleanup is `continue-on-error`, tolerates a failed listing, and deletes **all** matching ids. *Prevents: a cleanup hiccup reddening a job whose publish succeeded.*
+- **D5.4 Retention backstop.** Output: **every** `upload-artifact` sets `retention-days: 1`.
+- **D5.5 Never blanket-delete.** Output: cleanup MUST NOT enumerate and delete the run's whole artifact set. *Prevents: destroying diagnostic/log artifacts and auto-emitted build-records.*
+- **D5.6 A durable destination's retention is bounded and owned.** Input: a deploy that installs a release beside the retained ones on a host the project owns. Output: retention is bounded by a **declared count**, and the side owning the prune is **written down**. Where the deploy credential can observe the destination, the deploy asserts the count converged and fails when it does not. Where the credential is deliberately write-only, so it can neither delete nor read back, the prune belongs to the **host** and that ownership is recorded there: widening the credential to reach the destination would trade a real confinement boundary for a check, which is the wrong trade. The release the live pointer resolves to is never a prune candidate, whatever the sort order says. A prune that runs against a local scratch tree, or that is best-effort, or that no side is recorded as owning, satisfies none of this. Unlike D5.1 through D5.4, this destination is durable rather than a run-scoped artifact, so no retention backstop expires it. *Prevents: a destination growing without bound until the disk fills, which surfaces as a site outage rather than as a failed deploy; and the split-ownership version of the same, where each side assumes the other prunes.*
 
-### D6 - Self-testing workflows
+### D6 - Seam / Architecture Conformance
 
-- **D6.1 A change is testable on its own branch.** Output: a workflow or build change is exercised by CI on
-  the branch that introduces it, no dependency on reaching `main` first.
-- **D6.2 Head-resolution, single producer, fork exception.** Output: CI runs on `push` to every branch so
-  reusable `./...` logic resolves from the head, and the aggregator's ruleset-bound `context:` is produced by
-  that push run as the sole producer of that name. Dependabot PRs are in-repo branches, validated the same
-  way. A fork cannot push, so it has no run and is validated by maintainer action - the one exception.
-  *Prevents a dual-producer context race and a false self-test claim for forks.*
+- **D6.1 Pattern handoff.** Output: the release job downloads by `pattern:`/`merge-multiple:`, not `artifact-ids:`. **File** targets upload `release-asset-<branch>-<target>`, and a target contributing no file to the release (Docker, PyPI) uploads no `release-asset-*` of its own, per D4.3, whatever other transfer artifact it uploads. The `pattern:` download is canonical for a single-target repo too, which does not special-case itself to `artifact-ids:`.
+- **D6.2 Branch drives config.** Output: a called workflow's branch-derived config reads `inputs.branch`, never `github.ref_name`.
+- **D6.3 Branch-named artifacts.** Output: every artifact name carries the branch, so a branch's artifacts do not collide with another branch's.
+- **D6.4 Target add/drop is consistent.** Output: adding or dropping a target updates **all** of: the `enable_<target>` value the publisher passes to the release task, the publisher's `on.push.paths` entries where it carries a `push` trigger, the `changes` paths-filter entry + output, the `smoke-build` enable-forward, and `expect_release_assets` where the change adds the first file target or drops the last (D4.3), plus, for a package target, the separate `publish-<target>` job. A repo owning its release task also updates the target's build job there, `build-<target>` or `dotnet-publish` for the .NET target, and its `github-release` and `build-docker` `needs:` entries. Everything in the `github-release` job **except its `needs:` list** stays verbatim, and so does the version and publish-plan logic. "Verbatim" never reaches the surfaces this item requires editing, that `needs:` list, the release task's job list, and the paths-filter among them. *Prevents: a partial subset that startup-fails on a missing leaf or never smoke-builds a target.*
 
-### D7 - Concurrency, permissions, safety
+### D7 - Concurrency, Permissions, Safety
 
-- **D7.1 The publisher does not cancel mid-flight.** Output: ref-independent group, `cancel-in-progress:
-  false`. CI uses the `...-${{ github.ref }}` group with `cancel-in-progress: true`; the merge-bot keys on PR
-  number (D8.1).
-- **D7.2 Skipped jobs still need valid permissions.** Output: every reusable job runs under valid least-privilege
-  `permissions:`; a callee's extra scope is granted by the caller.
-- **D7.3 Boolean inputs both forms.** Declared in both trigger blocks, compared against `true` and `'true'`.
+- **D7.1 Publisher serializes.** Output: the publisher uses a **global, ref-independent** concurrency group with `cancel-in-progress: false`. *Prevents: a schedule and a dispatch double-pushing, or a cancelled publish leaving a partial release.*
+- **D7.2 A called job's permissions block is validated before its `if:`.** Output: a reusable job declares `permissions:` only where **every** caller grants that scope at startup, and otherwise declares none and runs under whatever the calling job granted. A callee's extra scope (e.g. `actions: write` for cleanup, or `id-token: write` for OIDC) is granted by the caller and appears at exactly the one entry point that needs it. *Prevents: a `startup_failure` on every caller that does not grant a scope only one target needs, including a smoke build under a read-only pull request token.*
+- **D7.3 A `github.event.inputs` boolean is compared as a string.** Output: a boolean read through `github.event.inputs.<name>` is compared against `'true'`, since that context delivers every input as a string whatever the input's declared type. Comparing it against the boolean `true` as well is dead rather than defensive: an operand-type mismatch casts each side to a number, a non-numeric string casts to `NaN`, and `NaN` compares equal to nothing, so `github.event.inputs.<name> == true` is false even on the run where the input arrived as `true`. The `inputs` context preserves the declared boolean on the `workflow_call` and `workflow_dispatch` paths alike, so an `inputs.<name>` read is used directly, and a both-forms comparison there is redundant rather than wrong, which is why the hub's Docker build task comparing its `build-base` input in both forms is not a finding. A workflow carrying both trigger blocks declares each boolean input in both, since one declaration does not propagate to the other, while a boolean that only ever arrives by `workflow_call` is declared in that block alone. `smoke` is such a boolean, every hub task declaring it being `workflow_call`-only, which is why D1.3 writes the workflow-layer gate `!inputs.smoke` against the real boolean and the composite-action gate `inputs.smoke != 'true'` against a string, a composite action's inputs being strings whatever their caller passed. A job or step **output** is always a string as well and takes the same `== 'true'` rather than a bare truthiness test, since the string `'false'` is truthy. *Prevents: a dispatch-path string read as truthy, and a comparison against the boolean `true`, which can never fire, standing in for the one that can.*
+- **D7.4 Optional-dependency chaining.** Output: a cross-job condition chaining across an **optional** dependency allowlists `success`/`skipped` explicitly, paired with a status-check function such as `always()` or `!failure() && !cancelled()`. Without one the implicit `success()` applies and is false the moment any `needs:` job skipped, which is the case the allowlist exists to admit. *Prevents: a condition that reads as tolerant of a skipped dependency and is dead in exactly that case.*
 
-### D8 - Bots and automation
+### D8 - Bots / Automation
 
-- **D8.1 Merge-bot.** Output: runs on `pull_request_target`, holds the App token, merges the PR by URL without
-  checking out its code. Enables auto-merge on `opened`/`reopened`; squash on `develop`, merge-commit on
-  `main` by the PR's base ref; disables auto-merge when a maintainer pushes to a bot branch. Concurrency keyed
-  on PR number.
-- **D8.2 Dependabot auto-merges on green, every tier.** Output: every Dependabot PR - any ecosystem,
-  semver-major included - auto-merges once the required checks pass, with no version-tier exception (this repo
-  has only the `github-actions` ecosystem). A failing check blocks the merge. A merged bump does **not** itself
-  publish (dependencies are not shipped inputs); it ships in the next weekly publish.
-- **D8.3 No codegen / upstream-version automation.** This repo has neither; the merge-bot carries only
-  `merge-dependabot` + `disable-auto-merge-on-maintainer-push`.
+- **D8.1 Merge-bot.** Output: enables auto-merge on `opened`/`reopened` for **every** Dependabot tier including semver-major (the required checks are the gate, not the bump magnitude); dispatches `--squash`/`--merge` by the PR's base ref; disables on a maintainer-pushed `synchronize`; concurrency keyed on the **PR number**, not `github.ref`. *Prevents: two PRs colliding in auto-merge.*
+- **D8.2 CodeGen and Dependabot.** Output: codegen runs as a matrix over both branches and is deterministic from an external source. `.github/dependabot.yml` targets both branches, and security PRs go to the default branch.
+- **D8.3 Upstream-version tracker.** Output: a scheduled resolver prints a JSON `name -> version` object to a committed state file, opens a rolling per-branch bump PR naming only the moved keys, the merge-bot auto-merges it. The `main` pin push publishes via the release gate, while a `develop` pin does not auto-publish. It ships via a `develop` dispatch (prerelease) or the next promotion to `main`. The tracker's `bump-branch-prefix` + `branches` MUST match a merge-bot rule, one of the built-in `<prefix>-<base>` head/base pairs or a `rules` entry the caller passes, or auto-merge silently never fires. A tracker whose bump needs a human decision instead sets `auto-merge: false`, which prefixes the head so no merge-bot rule matches it, whatever `bump-branch-prefix` names.
+- **D8.4 An identity allowlist used as a gate fails loud.** Where a gate compares `github.actor` (or a PR author) against hard-coded bot identities, the non-matching branch on an otherwise-legitimate trigger **emits a `::warning::`** rather than falling through silently. Output: a run that declines to act on an unrecognized identity is visibly annotated. *Prevents: the App being renamed, replaced, or reinstalled under a new slug, after which the comparison quietly evaluates false and the gate stops firing, a green and silent run that looks identical to a healthy one.* The masking matters most where a second path hides the loss: a weekly schedule keeps publishing, so the only symptom is release *timeliness*, easily missed for months. Where the failure is self-announcing instead (the merge-bot simply stops merging, so bot PRs visibly pile up) an annotation is optional. Resolving the identity at run time (mint an App token, read `GET /app`) removes the hard-coded string entirely and is the escalation if an allowlist proves fragile in practice.
 
-### D9 - Style, static, and dropped workflows (see section 2)
+### D9 - Style / Static
 
-- **D9.1** Every action SHA-pinned with a version comment (sole exception: `dotnet/nbgv@master`); an installed-tool version (e.g. the actionlint
-  binary) is left unpinned to track latest.
-- **D9.2** File/workflow/job/step names follow the suffix rules; a ruleset-bound `context:` name moves only in
-  lockstep with `repo-config/`.
-- **D9.3** Bash `run:` blocks start `set -euo pipefail`; multi-line `if:` uses `>-`.
-- **D9.4** Line endings follow `.editorconfig`.
-- **D9.5 No decorative / dropped workflows.** No date-badge (`build-datebadge-*`), no tool-versions task, no
-  executable/`build-executable-task`, no `PUBLISH_ON_MERGE` variable, no `dorny/paths-filter`. Their presence
-  is a defect to remove.
-- **D9.6** Style is enforced in CI by the `lint` job (D1.3), from the same config files the editor uses.
+`GOVERNANCE.md` "Workflow YAML Conventions" names the tool D9.1 excepts and states the suffix rules D9.2 requires.
 
-### D10 - Repository configuration
+- **D9.1** Every action or reusable workflow referenced from another repository is SHA-pinned with a version comment (sole exception: the documented lagging-tag tool). A local (`./`) or self-repository (`$/`) reference names no ref and takes no pin.
+- **D9.2** File/workflow/job/step names follow the suffix rules. A ruleset-bound job's `name:` equals its ruleset `context:` (renamed together).
+- **D9.3** Multi-line bash `run:` blocks start `set -Eeuo pipefail`. Multi-line `if:` uses `>-`.
+- **D9.4** Docker layer cache targets a registry tag, not `type=gha`. `cache-to` writes only the built branch's `<repo>:buildcache-<branch>` and only on push, while `cache-from` reads both branches. A multi-image repo varies the cache **repository** rather than the tag, `<image>:buildcache-<branch>` per image, the tag alone being unable to distinguish two images.
+- **D9.5** Line endings follow `.editorconfig`.
 
-- **D10.1 Required configuration is present.** Output: the secrets, branch rulesets, and repository settings
-  section 6 lists are all in place. The detail and validation are in section 6; the audit is 5D.
+`WORKFLOW.md` section 4 keeps the D-guarantees, and the `workflow-ci-contract` Skill at `.agents/skills/workflow-ci-contract/references/d-guarantees.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo, carries this section whole as a generated include.
 
-## 5. Test methodology
+## 5. Test Methodology
 
-### 5A. Static audit (no execution)
+An agent verifies a project in three escalating modes, then renders a verdict. **Skip N/A items** (`WORKFLOW.md` section 1): a guarantee or scenario for an absent construct is recorded N/A, not failed.
 
-Read the workflow files plus `version.json` and assert the fact behind each applicable guarantee with a
-`file:line` citation:
+### 5A. Static Audit (No Execution)
 
-- **D0:** CI has no branch matrix; the publisher's single `publish` job passes `github.ref_name` as
-  `ref`/`branch` and is guarded to `main`/`develop`; NBGV invoked once, every other consumer reads it via
-  `needs:`; the run builds the trigger ref so `GITHUB_REF` matches the versioned branch.
-- **D1:** CI runs on `push` with no paths filter; `validate` + `smoke-build` (the Docker target, `smoke: true`)
-  run; `lint` runs markdownlint, cspell on README/HISTORY, actionlint; there is no unit-test or CSharpier/
-  `dotnet format` step; the aggregator `needs:` both and blocks on non-success.
-- **D2:** the main release backstop checks the prerelease `-`, strips `+buildmetadata`, self-skips on smoke.
-- **D3:** `main` appears in the backstop and the `prerelease` expression; `publicReleaseRefSpec` is
-  `^refs/heads/main$`.
-- **D4:** `publish-release` triggers are `schedule` + `workflow_dispatch` only (no `push`, no
-  `PUBLISH_ON_MERGE`); the single `publish` job is guarded to `github.ref_name` in (`main`, `develop`) and
-  passes it as `ref`/`branch`; `target_commitish` is `GitCommitId`; the `prerelease` boolean
-  `== (inputs.branch != 'main')`; the release attaches `LICENSE` + `README.md` with
-  `fail_on_unmatched_files: true` and no build artifact; the Docker job logs in with `DOCKER_HUB_*` and pushes
-  `latest`/`develop` + `:SemVer2`; release-create gated `exists == false || workflow_dispatch`; Docker
-  buildcache is branch-scoped and write-gated on push; the Docker Hub overview push is gated to `main`.
-- **D5:** no `upload-artifact` / `download-artifact` anywhere; no blanket artifact delete.
-- **D6:** CI is `push` on every branch; the aggregator context has exactly one producer; no
-  `pull_request`-triggered fallback.
-- **D7:** the publisher group is ref-independent with `cancel-in-progress: false`; the merge-bot keys on PR
-  number; CI uses the standard group; reusable jobs declare permissions.
-- **D8/D9:** the merge-bot runs on `pull_request_target` with the App token, keyed on PR number; Dependabot
-  auto-merge has no semver-major exception; no codegen/upstream-version, date-badge, tool-versions, executable
-  task, `PUBLISH_ON_MERGE`, or `dorny/paths-filter`; actions SHA-pinned;
-  names/shells/conditionals per section 2.
+Assert the structural fact each *applicable* D-guarantee implies, and record **pass**, **fail**, or **N/A** per item. This section says how an audit is run and recorded rather than what must hold: a guarantee names its own constructs, and the requirement is `WORKFLOW.md` section 4's item together with whatever that item defers to.
 
-### 5B. End-to-end trace scenarios (deterministic from the YAML)
+Most of the evidence is in the workflow files and the composite actions they reach. Where a guarantee's evidence lies outside them, it is in practice the repo's branch ruleset, its Actions and Dependabot secret names, a workflow the repo only calls, a project or dependency file, or a committed file such as `version.json`, `.github/dependabot.yml`, `global.json`, `codecov.yml`, `.gitignore`, or `.editorconfig`.
+
+Cite what each verdict rests on. That is `file:line` for a file in the audited repo, its own name where a setting, a ruleset, or a secret name rather than a file is the evidence, and `<owner>/<repo>@<sha>` plus the `file:line` in that repo where the guarantee binds a workflow or composite action the audited repo only reaches, read at the SHA the caller pins. An **N/A** verdict names the absent construct instead, there being no line to cite.
+
+### 5B. End-to-End Trace Scenarios (No Execution, Deterministic from the YAML)
+
+For each *applicable* scenario, evaluate every job's `if:`/`needs:` against the inputs and emit the predicted **run/skip + version + release + artifact-end-state** table, then compare to the expected. A scenario governing a construct the repo does not contain is N/A, per `WORKFLOW.md` section 1, and an absent trigger is such a construct. Each scenario's trigger belongs to one workflow, so read that workflow's own `on:` block rather than the repo's type: S1 to S4 the pull request workflow's, S5 to S10 the publisher's, S11 the upstream tracker's, and S12 and S13 the deploy workflow's. A publisher carrying only `workflow_dispatch` therefore records S5, S6 and S9 N/A, their push and schedule paths never firing there, and a repo with no publisher at all records S5 to S10 N/A together. Where a scenario's path runs through a workflow or composite action the repo only **calls**, trace that callee as the repo reaches it, read at the SHA the caller pins rather than at the callee's current default branch, which is the same evidence rule 5A states. Predicting from the callee's `main` predicts a table for YAML the audited repo never runs. A local (`./`) or self-repository (`$/`) call carries no pin of its own and runs at the workflow commit, so it is traced at whatever SHA the outermost pinning caller fixed. Minimum set:
 
 | # | Input | Expected output | Exercises |
 | --- | --- | --- | --- |
-| S1 | push touching `Dockerfile` | `validate` + `smoke-build` run; the image builds, **no push, no release**; aggregator success | D0.1, D1 |
-| S2 | push changing only docs | `validate` (lint checks markdown) + `smoke-build` run; nothing publishes | D1, D1.5 |
-| S3 | push changing only `.github/workflows/**` | `smoke-build` exercises the changed reusable workflow head-resolved; `lint` runs actionlint; aggregator success | D1.1, D6.1 |
-| S4 | weekly `schedule` | builds + publishes `main` only: stable release + refreshed `latest` (multi-arch); `target_commitish` = main's SHA; develop is not touched | D4.1, D4.2, D4.4 |
-| S5 | `workflow_dispatch` from `develop` | builds + publishes `develop`: prerelease `X.Y.<height>-g<sha>` + `develop` image; `github.ref` is develop, so NBGV classifies it non-public | D4.1, D4.2, D3.2 |
-| S6 | `workflow_dispatch` re-run, no new commits | release-create refreshed on dispatch (or skipped if the tag exists on schedule); Docker re-pushed (base refresh); no duplicate release | D4.5 |
-| S7 | `workflow_dispatch` from a feature branch | the `publish` job's `github.ref_name in (main, develop)` guard skips it -> no publish | D4.1 |
-| S8 | merged GitHub-Actions bump | not a shipped input and merges don't publish -> **no release**; ships in the next scheduled run | D4.1, D8.2 |
-| S9 | PR with a markdown / spelling / workflow-YAML violation | the `lint` job fails -> aggregator blocks the merge | D1.3, D1.5 |
-| S10 | `version.json` floor bump merged | merges don't publish -> no immediate release; the new floor ships in the next publish | D3.3, D4.1 |
-| S11 | `develop` -> `main` promotion (merge commit) | the merge itself does not publish; `main`'s accumulated changes ship in the next scheduled run | D4.1, D8.1 |
+| S1 | PR touching a build target | `changes` flags it; validation runs; that target's smoke build runs; no push, **no uploads**; validate-release **succeeds**, its check exiting early on smoke per D2.2; release **skipped**; aggregator **success**; version = prerelease; no release; no dangling artifacts | D1, D2.2, D3 |
+| S2 | PR changing only docs | smoke-build **skipped**, validation runs, aggregator **success** | D1.1, D1.2, D1.5 |
+| S3 | PR changing only `.github/workflows/**` | the filter marks no target -> smoke-build **skipped**, validation runs, aggregator **success** | D1.2, D1.4, D1.5 |
+| S4 | PR base = default branch, carrying a build target | smoke versions as prerelease, validate-release **succeeds** with its check exited early per D2.2, so the default-branch arm does **not** fire, aggregator **success**, promotion not blocked | D1.5, D2.2, D3.2 |
+| S5 | bot push to `main` not touching a release path (e.g. an Actions bump) | the paths filter excludes it, so nothing publishes | D4.1 |
+| S6 | code-affecting **bot** push to `main` (a human push/promotion, or any develop push, does not) | the `plan` job gates it to the App/Dependabot actor, and `main` publishes a release | D3, D4 |
+| S7 | publish run (schedule, a bot push to main, or a dispatch) | builds the **one** trigger branch: `main` -> `X.Y.Z`, `prerelease=false`, registry stable, readme run; `develop` -> `X.Y.Z-g<sha>`, `prerelease=true`, registry prerelease; `release-asset-*` consumed-then-deleted; each package build-artifact (`nuget-build-*`, `pypi-build-*`) deleted after its publish; **no dangling artifacts** | D3, D4, D5, D6, D7 |
+| S8 | dispatch from a ref other than `main` or `develop` | **fails fast** | D2.3 |
+| S9 | re-run publish on a schedule or push trigger, version unchanged (a dispatch re-run refreshes the release instead, per D4.4) | release-create **skipped**, `release-asset-*` delete **skipped**; NuGet/PyPI pushes no-op (server dedupe); **package build-artifacts still deleted** (their download succeeded); **Docker still re-pushes** the image; no duplicate release | D4.4, D5.2 |
+| S10 | branch/version classification disagree | validate-release **fails loud**, build/publish skip | D2.2 |
+| S11 | scheduled upstream-version bump (wrapper) | resolver detects a change -> commits the state file -> opens a per-branch bump PR -> the merge-bot auto-merges it, or leaves it for the maintainer where the tracker sets `auto-merge: false` (D8.3) -> the `main` pin publishes via the gate (a develop pin does not auto-publish, shipping instead via a develop dispatch or promotion) | D8.3, D3.5 |
+| S12 | deploy dispatch naming an environment | the ref gate runs **first** (production from the default branch only, any ref to a non-production environment); validation runs; the callee re-asserts the environment name; a release installs under its own id; the pointer flips as a separate step; retention is bounded by whichever of the two D5.6 shapes the repo uses, so a deploy whose credential can observe the destination asserts the count converged and one confined write-only leaves it to the host; the live check asserts the environment and the release id, waiting out the reload, then the URL contract; **no tag and no release are created** | D2.1, D4.6, D5.6 |
+| S13 | deploy dispatch of a production environment from a non-default ref | **fails fast**, before anything is installed or written | D2.1 |
 
-### 5C. Live probe (where warranted, never publishing)
+### 5C. Live Probe (Where Warranted)
 
-- Open a trivial-change PR and confirm S1 (the image smoke-builds, nothing pushed, aggregator green).
-- After a `main` publish (schedule or dispatch) confirm a stable release (`isPrerelease == false`, tag plus
-  `LICENSE` + `README.md`, no build asset) and a multi-arch `latest` + `:SemVer2`
-  (`docker buildx imagetools inspect` shows amd64 + arm64) and the Docker Hub overview matching `Docker/README.md`;
-  after a `develop` dispatch confirm a prerelease `X.Y.<height>-g<sha>` + `develop` image. A re-run adds no duplicate
-  release. Absent publish rights, record indeterminate and rely on 5A/5B.
+Every probe here that opens a pull request, dispatches a workflow, or re-runs a real publish is the maintainer's to run, with the agent preparing the command and reading the result back afterwards. A harness that refuses such a write is the harness working as intended, and the refusal is neither re-shaped into a raw API call nor talked around (`GOVERNANCE.md` "Repository Boundaries and Write Safety").
 
-### 5D. Configuration audit
-
-Run [`repo-config/configure.sh check`](./repo-config/). It confirms the listed secrets exist, the
-`main`/`develop` rulesets enforce the required merge method + status check + signed commits + strict-off, and
-the repository settings are in place, exiting non-zero on drift. Secret *values* cannot be read back, so it
-asserts the names exist (failing if it cannot query them). The GitHub App installation is a best-effort
-check (a precise check needs app-level auth, so it notes rather than fails). The Docker Hub token's validity and push scope are a
-manual checklist item.
+- Open a trivial-change PR touching one target and confirm S1. *Caveat: the Docker leg logs in to the registry even on smoke and reads the buildcache, so it needs `DOCKER_HUB_*` secrets and cannot run on a fork PR (same-repo only).*
+- Per registry: after a real publish, query NuGet.org for the expected version + prerelease classification (and the `.snupkg` on the symbol server), and confirm a re-run added no duplicate. For PyPI read the built `dist/*` filenames out of the build job's log, `.dev0` off `develop` vs a plain version on the default branch.
+- Inspect the latest real publish's logs for `PublicRelease`/`SemVer2` per leg and confirm the artifact lifecycle (uploaded, consumed, deleted, with none left behind).
+- **The deploy ref gate (S13) is verified only by tripping it.** Dispatch the production environment from a non-default ref and expect the run to fail at the gate. The evidence is four things, and each of them matters: the gate job's conclusion, its error text naming the expected and the received ref, every downstream job recorded as **skipped** rather than passed, and the production environment's deployment list carrying no deployment from the dispatched ref. Capture all four, because a gate that fails open and a gate nobody tripped produce the same empty run history, so "we have never seen it fail" is not evidence about the one control standing between a mis-dispatch and the live site. **The agent prepares the command and reads all four back afterwards. It does not fire it.** The same split applies to any probe that acts on the deploy host directly, an outbound SSH exercising a forced command among them.
 
 ### Assessment
 
-Operational when every applicable 5A item passes, every applicable 5B scenario matches (corroborated by 5C
-where a live signal exists), and 5D configuration is in place. Procedure: **Audit** (5A + 5D) -> **Trace**
-(5B) -> **Probe** (5C, without publishing) -> **Verdict** with the failing guarantee(s) and the triggering
-input for each.
+Record the workflow **operational** when every *applicable* 5A item passes, every *applicable* 5B scenario's predicted output equals the expected, and no 5C probe that was run contradicts either. N/A items are excluded, never counted as failures. Any *applicable* mismatch is a **defect** -> **not operational**. Procedure:
 
-## 6. Repository configuration
+1. **Audit** with 5A, recording each item's verdict and its evidence in the form 5A sets out.
+2. **Trace** the applicable S-scenarios with 5B. Diff predicted vs expected.
+3. **Probe** with 5C where a live signal exists that the static trace cannot produce, running the probes that only read and preparing the writing ones for the maintainer: live version classification, registry state, the artifact lifecycle of a real run, and the deploy ref gate.
+4. **Verdict:** operational / not operational, with the failing guarantee(s) and the triggering input for each, the list of items recorded N/A, and the 5C probes prepared but not run.
 
-The workflows depend on configuration outside the YAML. A misconfiguration surfaces only as a failed run, so
-the configuration is part of "operational" (D10; audit 5D).
+`WORKFLOW.md` section 5 keeps the test methodology, and the `workflow-ci-contract` Skill at `.agents/skills/workflow-ci-contract/references/test-methodology.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo, carries this section whole as a generated include.
 
-**Secrets.**
+## 6. Per-Project-Type Test Walkthroughs
 
-- `DOCKER_HUB_USERNAME` / `DOCKER_HUB_ACCESS_TOKEN` - Docker Hub credentials the Docker target logs in with to
-  push the image and the repository overview. Required in **both** the Actions and Dependabot secret stores: a
-  Dependabot-triggered push runs CI whose Docker smoke build logs in too, and that run gets the Dependabot
-  store. The access token needs push scope on `docker.io/ptr727/vscode-server-dotnetcore`. There is no
-  NuGet/OIDC publishing.
-- `CODEGEN_APP_CLIENT_ID` / `CODEGEN_APP_PRIVATE_KEY` - the GitHub App credentials the merge-bot mints the App
-  token from. Required in **both** the Actions and Dependabot secret stores (a Dependabot-triggered run gets
-  the Dependabot store, not Actions secrets). The App must be installed on the repo with `contents: write` and
-  `pull_requests: write`.
-- The built-in `GITHUB_TOKEN` needs no setup. **No `PUBLISH_ON_MERGE` variable is used.**
+Each type adds constructs to the pipeline, and the constructs are what decide a verdict. This section states what each type **adds**. Section 1's applicability rule turns that into the N/A set on its own: an item governing a construct the repo does not contain is N/A, and one governing a construct it contains is checked. No row here states an N/A list of its own, deliberately, so that reading one row can never take away a construct another row supplies. Walking the rows a repo's types select is the self-check that the contract holds for its shape.
 
-**Branch rulesets.**
+Three rules govern reading a row, each of them because reading one row alone has produced a wrong verdict.
 
-- `main` - merge-commit merges only; requires the aggregator status check (`Check pull request workflow status
-  job`); requires signed commits; "require branches up to date before merging" is **off** (a forward-only
-  `develop` makes every post-release `main` tip unreachable from `develop`, so the strict check would fail
-  every release).
-- `develop` - squash merges only (keeps history linear); requires the same status check; requires signed
-  commits; "up to date" is **off** (so same-batch bot PRs auto-merge in parallel).
-- The required check's `context:` matches the aggregator job name verbatim (D6.2, D9.2).
+- **Types union, they do not choose.** A repo declaring more than one type contains the constructs of **every** type it declares, so an item is N/A only where no declared type supplies its construct. `source-only` beside another type is the case that catches a reader out: it adds no build target and takes none away.
+- **The trigger scenarios come from the publisher's own `on:` block, not from the type.** S5, S6 and S9 turn on which triggers the publisher actually carries, and two repos of one type routinely differ there. Section 5B's preamble owns that rule and it binds here.
+- **N/A names an absent construct, never an unexercised one.** The `pattern:` download (D6.1) and the `release-asset-*` cleanup step (D5.1 to D5.3 and D5.5) live in the release task, so a repo that owns that task and a repo that calls the hub-hosted copy both contain them and are both checked on them. Ownership decides only where the evidence is cited, in the repo's own file or at the SHA it pins, which is the form 5A gives. Section 5A requires an N/A verdict to name the construct that is absent, so an item that cannot be recorded that way is applicable.
 
-**Repository settings.** Auto-merge enabled; squash and merge-commit both allowed (each ruleset narrows its
-branch to one); rebase off; auto-delete-on-merge **off** (so `main`/`develop` survive a promotion). Dependabot
-version **and** security updates enabled. The GitHub App installed with the scopes above.
+The table files each of S1 to S13 under exactly one row, which is what covers the set without a per-type list restating it. Filing is not the whole applicability test: a scenario is N/A when **any** construct it needs is absent, and that can be more than the row it sits under, S1 needing the pull request workflow as well as the build target.
 
-**Validation.** This configuration is codified in [`repo-config/`](./repo-config/) and applied/audited by
-`repo-config/configure.sh`; `check` is the 5D audit. Secret values cannot be read back, so the audit asserts
-the names exist (failing if they cannot be queried); the App installation is a best-effort check.
+| Construct the repo contains | Scenarios it reaches |
+| --- | --- |
+| A pull request workflow with a validation job and the required aggregator | S2, S3 |
+| A build target: a `changes` filter entry, a smoke build, and a leaf that builds it | S1, S4 |
+| A publisher, meaning a workflow that cuts the release | S7, S8, S10, plus S5 and S6 wherever its own `on:` admits a push, and S9 wherever it admits a push or a schedule |
+| An upstream-version tracker and its merge-bot | S11 |
+| A deploy workflow targeting a filesystem on a host the project owns | S12, S13 |
+
+The rows below say which constructs a type brings with it. Read the repository for the rest: NBGV, `version.json` and the classification gate are reached on the smoke path too, so a repo with no publisher can still contain them, and a repo whose `releaseTrigger` is `none` has no publisher whatever its types say.
+
+What each type adds beyond that, and how its leaf behaves, is below.
+
+- **`dotnet-publish`.** The target runs a sequential `dotnet publish` runtime loop inside one composite-action job. Configuration is Release on the default branch and Debug otherwise. A non-smoke run builds the full runtime set, archives the combined output as a `.7z`, and uploads it as `release-asset-<branch>-dotnet-publish`. The archive is named from the project file stem unless `dotnet_publish_asset_name` overrides it. A smoke run builds a **strict, non-empty subset** of that runtime set and skips the archive and upload steps, so it uploads nothing. S1 smoke-builds that subset after a .NET project change. Where the repo has a publisher, S7 attaches the 7z from a non-smoke run. The non-default leg sets `prerelease=true`, and the default leg sets `prerelease=false`. GitHub marks the stable default release "Latest" automatically.
+- **`nuget`.** The leaf uploads both `release-asset-<branch>-nuget` and `nuget-build-<branch>` on a non-smoke run and pushes nothing, and a separate `publish-nuget` job in the repo's own publisher consumes the second and runs `dotnet nuget push *.nupkg --skip-duplicate`, then deletes it under the download step's own success (D5.2). Section 3's `Output Seam by Destination` says why the push sits there rather than in the leaf. Configuration is Release on the default branch, Debug otherwise. Where symbols are enabled (`snupkg`), the push auto-carries the paired `.snupkg` to NuGet.org's symbol server and the release-asset `.7z` also contains it, a triple surface. NuGet.org derives `isPrerelease` from the SemVer2 `-g<sha>` suffix (the workflow sets no such flag). Test: S7 non-default leg publishes a prerelease package + asset, default a stable; S9 re-run is a server-side `--skip-duplicate` no-op. 5C: query NuGet.org for both versions and the symbol package.
+- **`pypi`.** The leaf builds and uploads `pypi-build-<branch>`. A **separate** `publish-pypi` job (with `environment: pypi`, `id-token: write`, `actions: write`) does the OIDC Trusted-Publishing upload with `skip-existing: true`, then **consume-then-deletes** the build artifact under the download step's own success (D5.2), so on S9 it is deleted even though the `release-asset-*` delete is skipped. The version is the `X.Y.Z` core of `SemVer2` with `.dev0` appended on `develop` only, per D3.4. PyPI contributes no `release-asset-*`. A PyPI-only repo sets `expect_release_assets: false` at the caller. Test: S7 default leg publishes a release, non-default a `.dev0`; S9 is a `skip-existing` no-op; 5C inspects the `dist/*` filenames and the compute-version log.
+- **`docker`.** The leaf pushes the default branch multi-arch (amd64+arm64) and any other branch `amd64`-only, with a per-branch registry buildcache. A single-image repo caches to `<repo>:buildcache-<branch>`, and a multi-image repo varies the cache **repository** rather than the tag, `<image>:buildcache-<branch>` for each image, since the tag alone cannot distinguish two images (`cache-to` writes only the built branch and only on push, `cache-from` reads both branches). It contributes no `release-asset-*`, so a Docker-only repo's caller passes `expect_release_assets: false`. The readme job (`peter-evans/dockerhub-description`, `DOCKER_HUB_ACCESS_TOKEN`) runs **only** when the default branch publishes, whether called directly or reached through the hub-hosted `publish-docker-readme-task.yml`. Where the Docker Hub overview differs from the project README, the repo publishes a `Docker/README.md` through that task, the Hub description being size-limited. The docker-readme task validates its two mutually-exclusive input sources, `repositories` against `manifest`+`manifest-jq`, and defaults to the calling repository where neither is supplied, and a multi-image repo derives its publish matrix from the manifest. Docker **always re-pushes** the image, independently of a skipped release-create (S9). Test, under the default tag matrix, which a caller-supplied `matrix` or `docker-prepare` hook replaces: S7 default leg pushes `latest` + the version tag and updates the readme. Non-default pushes `develop` + the version tag (amd64 only). S9 still re-pushes. 5C Docker probe needs `DOCKER_HUB_*` secrets and same-repo (not fork) runs.
+- **`library` (a worked example, not a fleet type).** No such leaf ships, so this row walks D6.4's add-a-target procedure rather than an existing shape: a single new leaf that validates, zips, and uploads `release-asset-<branch>-library` (`retention-days: 1` per D5.4, upload gated on smoke being false per D1.3). Adding it means a new `enable_library` input, a `build-library` job and its `github-release` and `build-docker` `needs:` entries in the release task, a `library` paths-filter entry, `changes` output, and `smoke-build` enable-forward in the PR workflow (without that last one, D1.1 never smoke-builds the library), and in the publisher the `enable_library` value it passes and the library's paths in its `on.push.paths` where it carries a `push` trigger. **Only a repo that owns its release task can make the release-task half of that edit.** The hub-hosted release task declares a closed input set and a call passing an input it does not declare fails, so for a repo calling it adding a target is a change to the hub task first, and the enable-forward and the publisher's value wait on it. Keep `expect_release_assets: true` (it has a file target, unlike Docker). The caller's own validation job is replaced by a type-appropriate validator only where the reusable one cannot express this repo's validation, with the aggregator re-pointed to the replacement (D1.2). `smoke-build` keeps `needs: [changes]`, as D1.2 has it. `version.json` and the NBGV `get-version` **job** are retained (they own the tag). Test: S1 smoke runs validate+zip and uploads nothing; S7 attaches the zip, prerelease on the non-default leg; S9 on a push re-run skips release-create and the asset-delete (the existing zip is untouched, no registry push), while a `workflow_dispatch` re-run is D4.4's refresh case rather than S9's, re-uploading then re-deleting the asset.
+- **`upstream-wrapper`.** The repo tracks an upstream project's releases rather than versioning its own code. A scheduled resolver writes a `name -> version` state file and opens a per-branch bump pull request, the merge-bot auto-merges it, or leaves it for the maintainer where the tracker sets `auto-merge: false` (D8.3), and the build leaf MUST read that state file for its build or image version instead of `SemVer2`, while NBGV still tags the release (D3.5), the tracker shipping without this consumer wiring. Test: S11 traces the bump from resolver to the publish that ships it, which for the `main` pin is the gated publish D8.3 describes. Nothing in this row depends on which build-target types the wrapper also declares.
+- **`homeassistant`.** Adds a **file target**: distribution is a GitHub release that HACS installs from, so the release carries the integration zip. The contract's seam for that is D6.1's `release-asset-<branch>-<target>` upload collected by `pattern:`, which a repo owning its release task supplies itself, the hub-hosted task declaring a closed set of `enable_*` inputs that has no entry for this type. A repo reaching the same tag-plus-asset outcome through a differently-named artifact diverges from D4.3 and D6.1 alike, which is a defect against the seam rather than against the release it produces. Its Python side follows home-assistant/core conventions rather than this fleet's defaults, pip with `requirements*.txt`, a `custom_components/<domain>` layout, and standalone `.ruff.toml` and `pyrightconfig.json`, which is expected rather than drift, and `mypy --strict` runs in CI. Test: S1 smoke-builds the zip, and S7 attaches it where the repo has a publisher.
+- **`eda`.** Adds a **file target**: distribution is a GitHub release data zip that a local EDA install pulls, supplied by the repo's own release task for the same reason the `homeassistant` row gives. It also adds design-data validation to the pull request gate, the analogue of the code linters, `kicad-cli` ERC/DRC or library linting in practice. Where the repo generates build-time artifacts (gerbers, drill files, a BOM), that generation is deterministic from the design inputs, which a data-only repo not yet building artifacts owes only once it starts. Test: S1 smoke-builds the zip, S2 and S3 cover the validation gate, and S7 attaches it where the repo has a publisher.
+- **`codegen`.** Adds a generation workflow that runs as a matrix over both branches and is deterministic from an external source (D8.2), carrying no per-run timestamp or GUID. It contributes no build target and no publish scenario of its own, so it changes no row of the table above.
+- **`csharp`, `python`, `cpp`, `docs`.** Add no pipeline construct. They decide what the validation job runs and what the repo's project configuration must hold, `csharp` the analyzer and central-MSBuild rules and D1.6's C# coverage leg, `python` the profile split and D1.6's Python one, `cpp` a shared `clang-format` feeding the lint gate, and `docs` a lint-only CI with no build or test. A repo declaring one of these and nothing else reaches only the scenarios its publisher and its pull request workflow already supply.
+- **`source-only`.** Adds no build leaf of its own. In a repo declaring no build-target type beside it, the publish job reaches the reusable release task with `github: true`, every `enable_*` input false, and `expect_release_assets: false`, producing tag + source zip + README + LICENSE with no asset download, the paths-filter matches nothing so a retained `smoke-build` job is **structurally always skipped**, and the repo may drop that never-running job. A repo declaring a build-target type as well enables that target instead, this row taking nothing away from it. NBGV and `version.json` own the tag. Validation remains the caller's own job reaching the reusable validator. The aggregator `needs:` that validation job (D1.2), and a retained `smoke-build` job `needs:` the `changes` job rather than the validation job. The publish job depends on the same reusable validation task the PR workflow runs, which prevents a dispatch from releasing a ref that fails validation. The release task carries the D6.1 `pattern:` download and the `release-asset-*` cleanup step (D5.1 to D5.3 and D5.5), so a repo contains them whether it owns that task or calls the hub-hosted copy, and is checked on them either way. **Owning it changes only where the evidence is cited**, in the repo's own file or at the SHA it pins, per section 5A's citation rule. Test, where the repo has a publisher: S7 covers the release, S8 the dispatch guard, and S10 the classification gate.
+- **`hugo` (a static site deployed to a host the project owns).** Two independent surfaces, and keeping them apart is the point. The **release** is the `source-only` shape above, unchanged. The **deploy** is its own `workflow_dispatch` carrying an `environment` choice input, so redeploying an unchanged commit mints no tag, which matters because redeploying is routine. It runs a ref gate **first**, before anything is installed or written (production from the default branch only, while any ref may reach a non-production environment, since proving a branch before it merges is what that environment is for), then the **same** reusable validation task the PR gate runs, so a dispatch cannot deploy a ref that fails validation, then calls the hub-hosted `deploy-site-task.yml`. That task declares the `environment:` inside itself rather than on the calling job, since GitHub rejects a job carrying both `uses:` and `environment:`. The caller still maps the crossing secrets explicitly under `secrets:`, `DEPLOY_SSH_PRIVATE_KEY` because the task declares it required, and the `SITE_AUTH_TOKEN_ID`/`SITE_AUTH_TOKEN` pair only where a token-gated live check needs it, `secrets: inherit` not being used on a cross-repository call. For a secret the environment defines, the value the task's job reads is resolved by the task's own `environment:` binding from the caller's environment store, not taken from that mapping. That task hard-asserts two interfaces. It requires the environment to carry `SITE_BASE_URL`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_HOST` and `DEPLOY_SSH_KNOWN_HOSTS` as variables and `DEPLOY_SSH_PRIVATE_KEY` as a secret, each non-empty, failing fast naming every missing one, and it requires `SITE_AUTH_TOKEN_ID` and `SITE_AUTH_TOKEN` to be mapped together or not at all. And it requires a **deploy hook** at `.github/actions/deploy/action.yml`, one composite action the caller owns, run three times with its `mode` input set to `build`, `prune` and `verify`. The hook declares all four inputs the task passes across those runs, `mode`, `bundle-path`, `release-id` and `environment`, and its `build` run leaves `releases/<release-id>/` and `current` under `bundle-path`, both of which the task asserts. The task re-asserts the environment *name*, `production` or `staging`, in a job of its own, because the `environment:` binding resolves before any step runs and a `workflow_call` caller is not bound by the dispatch choice list a human sees. The ref gate gets no counterpart re-assertion, so a caller reaching the task directly is trusted for the ref and not for the environment, which is a deliberate asymmetry rather than an omission. Its environment-bound job then: checks out full history (a shallow clone silently changes page metadata), derives the release id **once** and exports it (deriving it twice yields ids seconds apart, and the live check then asserts a version nothing installed), runs the hook's `build` invocation, installs the deploy credential from the environment, uploads into a per-release directory hard-linked against the current release and carrying **no** delete flag (at an environment root a delete removes the rollback targets), flips the pointer as a separate atomic step so a failed transfer cannot half-publish, then runs the hook's `prune` and `verify` invocations, the second checking the running host (D4.6) against the site's own URL contract. Retention (D5.6) is bounded by a declared count with one side recorded as owning it: a deploy whose credential can observe the destination prunes and asserts the count in the `prune` hook, while a credential confined **write-only** can neither delete nor read back, so that repo's `prune` hook is a no-op, the prune is a host-side timer, and the repo's runbook records that ownership. Widening the credential to bring the prune in-pipeline would trade a real confinement boundary for a check, and is the wrong trade. What the guarantee rejects is neither side owning it. One thing the pipeline cannot assert and the server config must: a non-public environment serving a byte-identical copy must not be indexed, and that default belongs on the side that is harmless in production, since a non-public container missing the value is still behind its gate while a production container inheriting it deindexes the site silently.
+- **Operational (a `workflowModel`, not a type).** A `workflowModel: operational` repo layers direct commits to `develop` onto the `source-only` release shape above. It has two workflows. The first is a **lint/validation** PR workflow that feeds the required `Check pull request workflow status job`. It uses the generic linters (editorconfig/EOL, markdownlint, cspell, actionlint) plus a domain validator, with **no unit tests**. Examples include Home Assistant `hass --script check_config`, `esphome config`, or a firmware build. Its triggers differ from the `release` model. It runs on pushes to `develop`, pull requests to `[ main, develop ]`, and `workflow_dispatch`. Push validation is advisory. Pull request validation is enforced on `main` and reported but not required on `develop`. The second workflow is the standard `source-only` publisher. NBGV and `version.json` own the tag. The reusable release task creates tag + source zip + README + LICENSE. **The PR trigger names both branches, and naming `main` alone is a defect.** Omitting `develop` starts no validation when a PR opens against `develop`. The aggregator then never reports, and the PR appears clean with an empty check list. D1.2 forbids that output. Naming both causes a duplicate run after a PR merge. The change validates on the PR and again on the resulting push, regardless of merge method. The operational `develop` ruleset prescribes no merge method. The concurrency group uses the workflow name plus `${{ github.ref }}` (`GOVERNANCE.md` "Workflow YAML Conventions"). A pull request uses `refs/pull/<n>/merge`, while its push uses `refs/heads/develop`. The runs occupy different groups and neither cancels the other. Pay that cost. The lint-only gate costs only a few runner-minutes. Suppressing the push requires distinguishing a merge commit from a direct commit, which restores the ambiguity the trigger set removes. Having no build target, such a repo never reaches S1, whose input is a target change, on any pull request, promotion and `develop` pull requests included. See the branch-model note in Section 3 and [GOVERNANCE.md "Branching Model"][governance-branching-model].
+
+<!-- Repo -->
+
+[codestyle]: ./CODESTYLE.md
+[governance-branching-model]: ./GOVERNANCE.md#branching-model
