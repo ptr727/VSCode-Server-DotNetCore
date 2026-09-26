@@ -59,7 +59,7 @@ docker pull ptr727/vscode-server-dotnetcore:latest
 docker pull ptr727/vscode-server-dotnetcore:develop
 ```
 
-Each build includes the LTS and STS [supported versions][dotnet-support-link] of the .NET SDK. Images are rebuilt every Monday, picking up the latest upstream Code-Server and .NET SDK updates.
+Each build includes the LTS and STS [supported versions][dotnet-support-link] of the .NET SDK. The `latest` image is rebuilt from `main` every Monday, picking up the latest upstream Code-Server and .NET SDK updates. A `develop` image is published on demand.
 
 ## Usage
 
