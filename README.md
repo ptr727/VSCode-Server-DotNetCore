@@ -75,6 +75,7 @@ The third-party tools, libraries, and actions this project depends on.
 
 | Tool | Role |
 | --- | --- |
+| [.NET SDK][dotnet-link] | Development platform installed in the image. |
 | [actionlint][actionlint-link] | GitHub Actions workflow linter. |
 | [Coder Code-Server][code-server-link] | VS Code running in a browser. |
 | [cspell][cspell-link] | Spell checker. |
@@ -85,7 +86,6 @@ The third-party tools, libraries, and actions this project depends on.
 | [LinuxServer.io Code-Server][lsio-code-server-link] | Code-Server container base image. |
 | [markdownlint-cli2][markdownlint-link] | Markdown linter. |
 | [Nerdbank.GitVersioning][nbgv-link] | Version computation from git height. |
-| [.NET SDK][dotnet-link] | Development platform installed in the image. |
 
 ## License
 
@@ -127,7 +127,7 @@ Licensed under the [MIT License][license]\
 [dotnet-link]: https://dotnet.microsoft.com
 [dotnet-support-link]: https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core
 [editorconfig-checker-link]: https://github.com/editorconfig-checker/editorconfig-checker
-[github-actions-link]: https://github.com/features/actions
+[github-actions-link]: https://github.com/actions
 [lsio-armhf-link]: https://www.linuxserver.io/blog/a-farewell-to-arm-hf
 [lsio-code-server-link]: https://github.com/linuxserver/docker-code-server
 [markdownlint-link]: https://github.com/DavidAnson/markdownlint-cli2
