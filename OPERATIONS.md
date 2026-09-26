@@ -13,10 +13,10 @@ docker run --rm -v "$PWD":/work -w /work rhysd/actionlint
 docker run --rm -v "$PWD":/check -w /check mstruebing/editorconfig-checker:latest
 ```
 
-Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Dockerfile`](./Dockerfile) edit, build the image for one platform to prove it still builds, which is what CI's smoke build does on every push:
+Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds, which is what CI's smoke build does on every push:
 
 ```shell
-docker buildx build --load --progress plain --platform linux/amd64 --tag testing:latest .
+docker buildx build --load --progress plain --platform linux/amd64 --file Docker/Dockerfile --tag testing:latest .
 docker run -it --rm --name testing testing:latest /bin/bash
 docker run -d --rm -p 8443:8443 --name testing testing:latest
 ```
