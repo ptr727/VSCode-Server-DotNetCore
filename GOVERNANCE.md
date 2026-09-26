@@ -248,7 +248,7 @@ An overlap with `WORKFLOW.md` resolves **by subject**, never by blanket preceden
 
 ## Devcontainer
 
-Contributors commit to this repo with signed commits. This repo ships no committed devcontainer and builds no application source, so it needs no language toolchain. Docker with Buildx is the only build tool, for the multi-arch image the [`Dockerfile`](./Dockerfile) defines, and the document linters run from their official images too. The checks and the commands behind them are in [`OPERATIONS.md`](./OPERATIONS.md) "Local Verification".
+Contributors commit to this repo with signed commits. This repo ships no committed devcontainer and builds no application source, so it needs no language toolchain. Docker with Buildx is the only build tool, for the multi-arch image the [`Docker/Dockerfile`](./Docker/Dockerfile) defines, and the document linters run from their official images too. The checks and the commands behind them are in [`OPERATIONS.md`](./OPERATIONS.md) "Local Verification".
 
 ## Editor and Tasks
 
@@ -270,7 +270,7 @@ Every repo's GitHub repository details (the About panel) follow a fixed conventi
 - [`AGENTS.md`](./AGENTS.md): the agent entry point, carrying context and delegation rules plus the map to the sections above.
 - [`CLAUDE.md`](./CLAUDE.md): imports `AGENTS.md`, since Claude Code reads `CLAUDE.md` and never `AGENTS.md` on its own. Carries no rule of its own.
 - [`GOVERNANCE.md`](./GOVERNANCE.md), [`CODESTYLE.md`](./CODESTYLE.md), [`WORKFLOW.md`](./WORKFLOW.md), [`OPERATIONS.md`](./OPERATIONS.md), [`AUDIT.md`](./AUDIT.md): the governance, operations, and audit docs. This file is the cross-cutting-rules authority.
-- [`Dockerfile`](./Dockerfile): the only build input. It layers the .NET LTS and STS SDKs onto the `lscr.io/linuxserver/code-server:latest` base with `dotnet-install.sh`, installed to `/usr/share/dotnet`. A `main` publish builds it for `linux/amd64` and `linux/arm64`, and a `develop` publish and the CI smoke build for `linux/amd64` only. It takes a single `LABEL_VERSION` build argument, and nothing is compiled from local source.
+- [`Docker/Dockerfile`](./Docker/Dockerfile): the only build input. It layers the .NET LTS and STS SDKs onto the `lscr.io/linuxserver/code-server:latest` base with `dotnet-install.sh`, installed to `/usr/share/dotnet`. A `main` publish builds it for `linux/amd64` and `linux/arm64`, and a `develop` publish and the CI smoke build for `linux/amd64` only. It takes a single `LABEL_VERSION` build argument, and nothing is compiled from local source.
 - [`Docker/README.md`](./Docker/README.md): the Docker Hub overview, pushed after a `main` publish.
 - [`README.md`](./README.md) and [`HISTORY.md`](./HISTORY.md): the project description and its release history.
 - [`version.json`](./version.json): the NBGV version floor. NBGV derives the build and tag version from it plus git height, and no .NET assembly is produced.
