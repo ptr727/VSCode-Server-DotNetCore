@@ -19,7 +19,7 @@ jobs:
   # Single source of the release-gate decision (publish or not, stable or not), reused by every job below.
   plan:
     name: Plan release job
-    uses: ptr727/ProjectTemplate/.github/workflows/publish-plan-task.yml@0b7cba39577e35929f4a9ece7dcf25a497f89bef # 2.0.810
+    uses: ptr727/ProjectTemplate/.github/workflows/publish-plan-task.yml@f75f9b520256c0ab65fc4a70cf1601a813780cf7 # 2.0.826
     with:
       event_name: ${{ github.event_name }}
       actor: ${{ github.actor }}
@@ -30,7 +30,7 @@ jobs:
     name: Validate job
     needs: [plan]
     if: ${{ needs.plan.outputs.publish == 'true' }}
-    uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@0b7cba39577e35929f4a9ece7dcf25a497f89bef # 2.0.810
+    uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@f75f9b520256c0ab65fc4a70cf1601a813780cf7 # 2.0.826
     permissions:
       contents: read
 
@@ -38,7 +38,7 @@ jobs:
     name: Publish project release job
     needs: [plan, validate]
     if: ${{ needs.plan.outputs.publish == 'true' && needs.validate.result == 'success' }}
-    uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@0b7cba39577e35929f4a9ece7dcf25a497f89bef # 2.0.810
+    uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@f75f9b520256c0ab65fc4a70cf1601a813780cf7 # 2.0.826
     permissions:
       contents: write
       actions: write
@@ -63,7 +63,7 @@ jobs:
     name: Publish Docker Hub readme job
     needs: [plan, publish]
     if: ${{ needs.plan.outputs.publish == 'true' && needs.publish.result == 'success' }}
-    uses: ptr727/ProjectTemplate/.github/workflows/publish-docker-readme-task.yml@0b7cba39577e35929f4a9ece7dcf25a497f89bef # 2.0.810
+    uses: ptr727/ProjectTemplate/.github/workflows/publish-docker-readme-task.yml@f75f9b520256c0ab65fc4a70cf1601a813780cf7 # 2.0.826
     permissions:
       contents: read
     secrets:
