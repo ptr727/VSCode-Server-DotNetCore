@@ -80,8 +80,10 @@ separate permissions. Repository exposure needs explicit maintainer approval eve
 is read-only. Use the hub's `scripts/docker_lint.py` wrapper for the standard lint shape. It
 discovers targets, pulls images in a separate phase, resolves each digest, and announces the
 boundary before repository mounts begin. Each Docker command has a timeout and visible result.
-Lint containers disable networking and mount the checkout read-only. Persist approval only when
-the executor constrains that whole shape. Never allow an unconstrained `docker run` prefix.
+Lint containers disable networking and mount a read-only snapshot rather than the live checkout.
+The snapshot holds only the tracked and unignored files, so a git-ignored file stays on the host.
+Persist approval only when the executor constrains that whole shape. Never allow an unconstrained
+`docker run` prefix.
 PSScriptAnalyzer downloads its pinned module in a separate container that has network access and
 no repository mount. `GOVERNANCE.md`'s hub-only "Running the Linters Locally (Known-Working
 Invocations)" section owns the exact invocation and full authorization model.
@@ -126,10 +128,10 @@ restricted. Each structural rule a pattern can reach lands as a `prose_lint.py` 
 incrementally, and this section names each check as it ships.
 
 - **Short sentences: at most 25 words in one sentence**, ASD-STE100's descriptive cap, checked by
-  the `sentence-length` rule in `prose_lint.py`. The check is opt-in like `sentence-split`,
-  because the existing corpus predates the cap and a default gate would fail whole files nobody
-  is editing. Write new prose under the cap, and scope a run to a change with
-  `--check sentence-length --diff <base>`.
+  the `sentence-length` rule in `prose_lint.py`. The rule reads Markdown prose, code comments, and
+  docstrings. The check is opt-in like `sentence-split`, because the existing corpus predates the
+  cap and a default gate would fail whole files nobody is editing. Write new prose under the cap,
+  and scope a run to a change with `--check sentence-length --diff <base>`.
 - **One instruction per sentence.** A procedure step states one action, and a second action is a
   second step. No pattern reaches this, so it is authoring discipline with no check.
 - **Active voice, imperative mood for procedure steps.** Write "run the gate", never "the gate
@@ -192,9 +194,12 @@ pull request carries the `comments` label and the gate stands down for that chan
 and `--allow-comments` does it for one run by hand. The label and the variable are separate deliberately, so a variable
 left exported reaches the commit and never the merge gate.
 
-Three things about reaching those escapes read as a broken gate until they are known. The label is read off the event that started the run, so a label added after a run fails
-applies to the next push rather than to a re-run of that one, and labeling the pull request when it
-is opened is what avoids the round trip. The label reaches a repository only when the fleet label
+Three things about reaching those escapes read as a broken gate until they are known. On a public
+repository the lint job reads the label when it runs, and its log says "Read the pull request's
+labels live". A label added before then applies, and a rerun picks up one added since. In a private
+repository, or where the log lacks that line, the event's snapshot decides. It misses a label
+applied after the event, `gh pr create --label` included, so
+there the label applies to the next push. The label reaches a repository only when the fleet label
 set is applied to it, so a repository that has not had that applied since the label was declared
 cannot carry it, and there the finding names a remedy that is not yet available. And the local
 escape reaches a commit before any of that, which is where a repository meets this rule first, since
@@ -286,7 +291,7 @@ would report a fixture rather than a claim about this repository.
 Agent-authored text is ASCII by default: documentation, code, comments, commit messages, and PR
 descriptions. A non-ASCII character is read against three tiers, because whether one is
 typography or meaning depends on where it sits. A character in no tier is a finding rather than a
-silent pass.
+silent pass, a letter of a recorded name excepted per the bullet below.
 
 - **Tier 1, never legitimate.** Typography carrying no meaning its ASCII form loses. Remove on
   sight:
@@ -309,11 +314,16 @@ silent pass.
 - **Unicode a developer deliberately typed** stays regardless of tier, such as emoji used for
   emphasis or as callout markers. Never strip a developer's own characters, this is developer
   authored text and not a license for the agent to add its own.
+- **A letter in a recorded name keeps its actual spelling.** A person's or a place's name that a
+  document records as data is written with its own letters and the marks they carry, since
+  folding one to ASCII records a different name. Anywhere else a letter the agent writes that no
+  tier covers takes its ASCII form.
 - **An unrecognized non-ASCII character is reported, not allowed.** Classify it into a tier above
-  before using it.
+  before using it. A letter of a recorded name is the one exception, per the bullet above.
 - **No semicolon in agent-authored prose.** Recast a mid-sentence semicolon as a comma or as two
   sentences. A semicolon separating items in a list that already contains commas, or a statement
-  terminator in code, is unaffected.
+  terminator in code, is unaffected. A single semicolon separates such a list only between two
+  labeled items, as in `Inputs: a, b; outputs: c`, and a list item's bold opening label is not one.
 - **No spaced hyphen joining or interrupting a sentence** (` - `, or the paired aside ` - x - `).
   Recast as a comma, two sentences, or parentheses. A hyphen inside a compound word, a leading
   list marker, a range, and the `- **Label** - explanation` bullet separator are unaffected.

@@ -81,11 +81,16 @@ promotion PR once the fix lands, is the early exit this skill exists to prevent.
 2. Commit the work, then run `local-strict-review` and record its pass in the order that skill
    gives, its diff receipt following the commit. Where the change also carries the canonical ledger,
    that skill's carried-content records instead precede the commit, because that ledger is tracked.
-   Then push the branch and open the feature -> develop PR if it does not exist yet. Open it
-   carrying the `comments` label where the change adds or edits a comment line in code or config,
-   since the prose gate refuses one otherwise and reads the label off the event that started the
-   run, so adding it after a failing check applies to the next push rather than to a re-run of
-   that one.
+   A driver that cannot dispatch a subagent follows that skill's "Running It".
+   Then push the branch and open the feature -> develop PR if it does not exist yet. A pass's
+   edit budget can be spent on this push or a later one. Where it is, write each `introduced`
+   finding still open into the pull request's body with its class, per `local-strict-review`
+   "Disposing of Findings". A later push adds its own to any list already there. Step 3 gives
+   each one an outcome under the Merge Gate's item 3. Where the
+   change writes a code or config comment line, add the `comments` label after creating the PR, or
+   the prose gate refuses it. Where a public repository's lint log says "Read the pull
+   request's labels live", a rerun of the failed job picks the label up. Otherwise it applies to
+   the next push.
    A push refused by a `.husky/pre-push` hook, which the hub carries and a
    repository has only if it adds one, is that gate working rather than an
    obstacle to route around, and that
@@ -135,7 +140,9 @@ promotion PR once the fix lands, is the early exit this skill exists to prevent.
    a review on the new head and continue the loop.
 8. Repeat 6 and 7 until the promotion PR meets every pr-review-conduct Merge Gate item except the
    maintainer's explicit permission to merge.
-9. Report the promotion PR number and its ready state. Do not merge it.
+9. Report the promotion PR number, its ready state, and its full head SHA, read as `gh pr view
+   <number> --repo <owner>/<repo> --json headRefOid --jq .headRefOid`, the one `merge-and-release`
+   compares against before merging. Do not merge it.
 
 ## Disposing of Every Finding
 
@@ -162,9 +169,11 @@ maintainer when".
    Disprove a wrong finding with the command and its output, the code path that makes it
    impossible, or the rule that governs it. A finding that is factually correct but not this
    repo's to fix (a verbatim-fidelity manifest entry byte-locking the section, ownership that
-   sits elsewhere) declines the same way: name the boundary and cite what proves it. Either shape
-   closes the thread on its own evidence, and the agent resolves such a thread itself rather than
-   leaving it for the maintainer. What makes that safe is the evidence being checkable by anyone,
+   sits elsewhere) declines the same way: name the boundary and cite what proves it. So does a
+   hardening finding that `GOVERNANCE.md` "Trust Boundaries and Hardening Effort" rules out,
+   citing that section and the input or deployment it turns on. Each shape closes the thread on
+   its own evidence, and the agent resolves such a thread itself rather than leaving it for the
+   maintainer. What makes that safe is the evidence being checkable by anyone,
    a command and its output, the code path, the quoted rule, a byte-identical diff, so a decline
    resting on anything weaker is not one of these. An assertion ("this is fine") does not close a
    finding, and outcome 3's value call is the maintainer's, so that thread stays open until they

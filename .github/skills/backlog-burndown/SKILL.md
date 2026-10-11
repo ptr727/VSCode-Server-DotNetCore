@@ -37,8 +37,8 @@ Everything below turns on which seat is acting, so both are named once here.
 - **The orchestrator** is the session this skill runs in. It ranks, groups, dispatches, and drives
   the promotion pull request. It opens no feature branch and fixes no issue itself, which is what
   keeps it out of every worker's files. It does write: it comments on issues, it drives and
-  amends the promotion pull request, and it owns worktree and branch cleanup, which "Dispatching a
-  Worker" states in full.
+  amends the promotion pull request, and it records the review receipt in a worker's worktree.
+  It also owns worktree and branch cleanup, which "Dispatching a Worker" states in full.
 - **A worker** is one dispatched subagent holding one group, one worktree, and one feature branch,
   the dispatched task `AGENTS.md` "Session Scope" describes. It drives its own pull request into
   develop and ends there.
@@ -74,10 +74,10 @@ A round is the unit. Each one runs these steps in order.
 3. **Verify** each group's predicted file set against everything in flight before dispatching
    anything. A group whose files are already claimed waits for the next round.
 4. **Dispatch** at most four workers, one per group, per "Dispatching a Worker".
-5. **Collect** each worker's outcome: merged to develop, stopped on a question only the
-   maintainer can answer, parked behind another group's file claim, or abandoned, which is what
-   the adjudication in "Grouping and File Claims" and a confirmed-gone worker both produce. Bound
-   this wait per "Bounding the Wait on a Worker".
+5. **Collect** each worker's outcome: merged to develop, stopped on a maintainer-only question,
+   parked behind another group's file claim, handed back for review, or abandoned.
+   The adjudication in "Grouping and File Claims" and a confirmed-gone worker both produce that outcome. Bound this wait per "Bounding the Wait on a Worker".
+   The orchestrator records a handed-back pass and continues the same worker.
 6. **Clean up** the worktrees, local branches, and merged remote branches of every group that has
    finished or been abandoned, per "Dispatching a Worker".
 7. **Promote**, per "The Promotion Boundary".
@@ -114,7 +114,9 @@ handoff chain `AGENTS.md` "Session Scope" defines, so it records work to do next
 its own, and an open one is present by design for as long as that chain is in use. Counting it
 inflates the number this run reports as the backlog by one for every lane in use, and a backlog
 count this fleet reports wrong is a failure with its own history, so filter the label out of the
-ranking and out of every count of the open backlog rather than out of the ranking alone.
+ranking and out of every count of the open backlog rather than out of the ranking alone. A link
+carrying `blocked` as well, as a parked lane does, is still a link, so this rule controls over the
+`blocked` rule below and the link is neither ranked nor counted.
 
 An issue carrying the `blocked` label is counted and is not ranked while its blocker stands. It
 records real work this repository owes, which is why it stays in the count, and the label says the
@@ -127,6 +129,13 @@ made, from a private or deleted repository or a reference nothing can be read fr
 stands rather than being assumed cleared. The round's report names every issue it held back this way
 and the blocker each one waits on, since the maintainer reads the report rather than the issue
 bodies, and a stuck issue nobody names reads as ordinary backlog that simply never moves.
+
+An issue that needs a platform, by the test `session-handoff` "The Chain" states, is counted and
+is not ranked. It belongs to that platform's lane, so this run gives it no group, no worker, and no
+claim. An issue only part of which needs a platform is held back the same way. It waits on the
+split "The Chain" describes, which this run does not make, and the narrowed issue is ranked once
+that split lands. The round's report names each issue held back this way, its platform, and
+whether it waits on a split, as it names a `blocked` one.
 
 An issue that asks a question rather than states a defect is not ranked and is never guessed at.
 It has no group, no worker, and no claim, so nothing in "Raising a Blocked Question" applies to it
@@ -161,9 +170,11 @@ for, and it binds harder than any throughput target.
   invisible to the round that has to respect it, and recording it on the issue is what makes the
   next bullet a read of durable state rather than of the orchestrator's memory.
 - **Verify the prediction before dispatching**, against everything in flight, which is wider than
-  this round: the files changed by every open **feature** pull request on this repository (`gh pr
-  diff <number> --name-only` per open pull request), and the claim comments of every group still
-  holding a branch, parked groups from earlier rounds included. `git worktree list` reports the
+  this round: the files changed by every open **feature** pull request on this repository, and the
+  claim comments of every group still holding a branch, parked groups from earlier rounds included.
+  `gh pr list --state open --limit 1000 --json number,baseRefName,headRefName,isCrossRepository --jq '.[] | select(.headRefName != "develop" or .baseRefName != "main" or .isCrossRepository) | .number'`
+  lists the open pull requests, its filter applying the promotion exclusion below.
+  `gh pr diff <number> --name-only` then reads each one's files. `git worktree list` reports the
   registered worktrees and the branch checked out in each, which is not the same as every branch
   that exists, so pair it with `git branch -r`, after `git fetch --prune origin`, for one that was
   pushed and whose worktree is already gone, and with `git branch` for one that was never pushed
@@ -239,23 +250,8 @@ Brief on `AGENTS.md` "Context and Delegation Discipline"'s subagent shape.
   procedure and the verify-then-delete of the merged remote branch, **both** rather than only the
   first. "Cleanup Is the Orchestrator's" below, in this
   same section, says why and what it covers.
-- **The worker runs `local-strict-review` before every push**, per `GOVERNANCE.md` "Verification
-  Discipline". That pass dispatches a reviewer of its own, so a harness where a subagent cannot
-  dispatch one leaves the worker unable to run it and unable to push. It reports that rather than
-  pushing, and its worktree is then retired, since git refuses to attach that branch anywhere else
-  while the reporting tree holds it. The branch is left standing for its own reason, that the
-  commits it already carries are what the re-dispatched worker continues from. This is the
-  worktree-only disposition "Cleanup Is the Orchestrator's" separates out, so a clean tree is the
-  whole test. A clean
-  tree is retired and the group re-dispatched to a seat that can dispatch. A dirty one is left
-  exactly as it stands and the group stopped for the maintainer, as is a group for which no seat
-  that can dispatch exists. That retire-and-re-dispatch case presumes the branch is reachable from
-  this repository, which the standalone clone `repo-worktree` allows as a fallback breaks: a worker that never
-  pushed holds its commits only in that clone, where this repository has no ref to hand a
-  replacement and nothing to retire, so re-dispatching loses the work rather than continuing it.
-  That group stops for the maintainer with the clone named, and no seat this skill defines resumes
-  it, since a worker never inherits another's checkout and the orchestrator opens no branch and
-  edits nothing. Neither the worker nor the orchestrator pushes around the missing pass.
+- **A worker that cannot dispatch a subagent hands back its worktree path, target, and digest.**
+  The brief says so per `local-strict-review` "Running It", and says the orchestrator can continue the same worker after recording.
 - **The brief names the branch the worker will use**, which is what lets the claim comment record
   it before dispatch. The worker still creates its own worktree, on that named branch rather than
   one of its choosing, since a claim naming a branch nobody used points at nothing.
@@ -313,10 +309,13 @@ round's cleanup step.
 
 ### Choosing the Worker's Model Tier
 
-`AGENTS.md` "Delegation" owns the model-tier rule. Read it there. This is only what it leaves to
-judgment here: the tier is chosen per group rather than defaulted, because a stronger tier
-produces better work up front and takes fewer review rounds to land it, which often costs less
-than a cheaper worker looping. Three kinds of group are never tiered down:
+`AGENTS.md` "Delegation" owns the model-tier rule and names the tiers. Read it there. This is only
+what it leaves to judgment here. The tier is chosen per group rather than defaulted, since a
+stronger tier produces better work and takes fewer review rounds to land it. That often
+costs less than a cheaper worker looping. The tier is `frontier` or `standard`, never `bulk`, since
+every worker judges its pull request's review findings. It is `highest` only where the maintainer
+named it for this run. Three kinds of group are never tiered
+below `frontier`:
 
 - One touching **carried canonical content**, as `GOVERNANCE.md` "Verification Discipline" bounds
   it, since a wrong rule propagates to every carrier.
@@ -331,8 +330,8 @@ State the chosen tier and its reason in the round's report.
 
 `AGENTS.md` "Delegation" binds this wait as it binds any other, and this section is how the bound
 is met here. A worker
-reports merged, parked, or stopped. A worker that reports nothing at all is the case needing a
-bound, since it is indistinguishable from a slow one and dying mid-drive is ordinary here.
+reports merged, parked, stopped, or handed back for review. A worker that reports nothing at all needs a bound.
+Its silence looks exactly like slowness, and dying mid-drive is ordinary here.
 
 The bound is a state read rather than a clock: when the other workers in the round have reported,
 read the silent worker's branch and pull request directly, `git log` on that branch and
@@ -362,6 +361,7 @@ Where no other worker remains to bound the wait, the same liveness answer bounds
 ## Raising a Blocked Question
 
 A group reaching a question only the maintainer can answer stops that group and nothing else.
+A review handback is not a blocked question.
 `pr-review-conduct`'s "Escalate to the maintainer when" list is what makes a finding a question
 rather than a decision.
 
@@ -410,10 +410,11 @@ has carried.
 1. **Open it whenever develop is ahead of main**, which `git fetch origin` and then
    `git rev-list --count origin/main..origin/develop` answers, and this round's own outcome does
    not. Fetch first every time: a stale remote-tracking ref reports zero and the round would report
-   nothing to promote while develop carries work. A round in which every group deferred or parked
-   can still owe a promotion pull request, for work an earlier round landed and no promotion has
-   yet carried. A count of zero is the only case with nothing to promote, and the round reports
-   that instead of attempting one.
+   nothing to promote while develop carries work. Stop and report a failed fetch rather than
+   running `git rev-list` anyway. A round in which every group deferred or parked can still owe a
+   promotion pull request, for work an earlier round landed and no promotion has yet carried. A
+   count of zero is the only case with nothing to promote, and the round reports that instead of
+   attempting one.
 2. Drive its review loop per the promotion half of `drive-pr` "The Drive Loop", **with a
    review-round budget set before the first round**. That loop repeats until the promotion pull
    request meets every `pr-review-conduct` Merge Gate item except the maintainer's explicit
@@ -479,7 +480,12 @@ closure a later round notices, where the opposite error destroys work.
 Deriving the set from the range rather than from what this round dispatched is what covers a group
 that deferred or parked, contributing none, and an earlier round's work that no promotion has yet
 carried. A fix landing during the freeze adds its issue to a body already written, so amend the
-body when it lands rather than leaving the issue to be closed by hand.
+body when it lands rather than leaving the issue to be closed by hand. Each amendment replaces
+the whole body, and another session may amend it between a read and a write. So build each one
+from a read of the body made immediately before the write, keeping every line that read holds.
+Then read the body again, and repeat the amendment where it lacks a `Fixes` line a freshly fetched
+range calls for. Checking the whole set rather than only this amendment's own lines is what
+restores a line another session's write dropped.
 
 ## Run State
 
