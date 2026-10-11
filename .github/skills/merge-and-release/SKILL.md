@@ -59,11 +59,30 @@ skill covers all of it, scoped down by what the maintainer actually asks for.
 ## The Procedure
 
 1. Identify the open develop -> main promotion PR for this repo, stop and report if none is open.
-2. From a hub checkout, `scripts/` is not carried into downstream repos, run `scripts/pr_review.py
-   status [number] --repo owner/repo` on it and confirm the pr-review-conduct Merge Gate. Stop
-   and report exactly what is missing rather than merging on a partial gate.
-3. `gh pr merge [number] --merge --repo owner/repo`. Never `--delete-branch`, the promotion PR's
-   head is `develop`.
+2. Record the promotion's live head, `gh pr view [number] --repo owner/repo --json headRefOid
+   --jq .headRefOid`. Then, from a hub checkout, `scripts/` is not carried into downstream repos,
+   run `scripts/pr_review.py status [number] --repo owner/repo` on it and confirm the
+   pr-review-conduct Merge Gate. Stop and report exactly what is missing rather than merging on a
+   partial gate. A `status` exit `45` is not a partial gate where the promotion meets the one case
+   that skill's Merge Gate item 2 states. Check that case again on every re-run below, and record
+   its evidence for the head step 3 merges, as that item says.
+   Confirm the digest's `head=` is a prefix of the recorded SHA, re-running both where it is not,
+   so the SHA step 3 merges is the one the gate verified. Where drive-pr's ready report named a
+   head and it is not a prefix of the recorded one, stop and re-ask with the commits added,
+   `gh api repos/owner/repo/compare/<reported>...<recorded> --jq '.commits[] | .sha[:8] + " " +
+   (.commit.message | split("\n")[0])'`, since a feature PR squashed into `develop` after the
+   report moves the promotion's head onto content the maintainer never saw. Under an
+   `unattended-handoff` standing grant this comparison is skipped, even where the worker holds a
+   ready report. Content another session merged meanwhile rides along, as that skill's grant
+   accepts.
+   Where no report named a head, a promotion made ready by hand, the go-ahead covers the head
+   this step recorded.
+3. `gh pr merge [number] --merge --match-head-commit <sha> --repo owner/repo`, where `<sha>` is
+   the head the go-ahead covers. Attended, that is the head `drive-pr`'s ready report named, or
+   the moved head the maintainer approved after step 2's re-ask. Under an `unattended-handoff`
+   grant, or where no report named a head, it is the head step 2 recorded. The server then
+   refuses the merge if the head moved past that SHA. Never `--delete-branch`, the promotion
+   PR's head is `develop`.
 4. Confirm the merge landed, `mergedAt` set, `main`'s tip matching the merge commit.
 5. When the chosen scope includes a release, first bring the hub checkout used for this procedure
    current, `git fetch origin main`, and read this repo's `releaseTrigger` from that fetched tip
@@ -108,37 +127,29 @@ skill covers all of it, scoped down by what the maintainer actually asks for.
    Report a timeout separately from a completed run's own conclusion, the tag or
    version it produced. A run that fails, times out, or never starts is reported, never silently
    retried.
-7. In the hub, when the chosen scope includes a release, bring this checkout to the merged
-   content without discarding or mixing in anything local. First assert `git status --porcelain
-   --untracked-files=all --ignored -- .agents/skills/ .claude-plugin/` is empty, and stop and
-   report rather than proceeding over any uncommitted content there, tracked, untracked, or
-   gitignored, since `skills_install.py` reads both paths: `shutil.copytree()` installs each
-   `.agents/skills/` skill directory for Codex/opencode, and `claude plugin marketplace add`
-   installs from `.claude-plugin/` for Claude Code, so a gitignored stray file under either rides
-   along the same as any other, and the plain porcelain form (silent on ignored paths) would pass
-   this preflight while one still rides into an install. Scoped to those two paths rather than
-   the whole tree, matching `skills_install.py`'s own `source_ref()` dirty check (`watched =
-   [SKILLS_SRC, CLAUDE_PLUGIN_DIR]`), since an ignored file elsewhere in the checkout (a build
-   cache, a lockfile) is not this preflight's concern and should not block the refresh on it.
-   Then `git fetch origin main`, `git checkout main`
-   (or `git checkout -b main origin/main` the first time this checkout carries no local `main` at
-   all, `checkout` rather than `switch` since the fleet's own `git` floor is undeclared and
-   `checkout` needs no minimum version for this), and `git merge --ff-only origin/main`.
-   `checkout` still refuses a `main` checked out in another worktree, and `--ff-only` refuses
-   anything but a clean fast-forward, so either stops and reports on top of what the preflight
-   already ruled out, per Repository Boundaries and Write Safety. `--ff-only` does not fail when
-   local `main` is already ahead of `origin/main`, since a strict superset needs no fast-forward
-   and reports up to date, so assert `git rev-parse main` equals `git rev-parse origin/main`
-   afterward and stop and report on a mismatch, a local-only commit this checkout never pushed is
-   exactly the case a bare "up to date" would hide. `skills_install.py` stamps and installs from
-   whatever this checkout's HEAD already is, so running it against a stale, unrefreshed, or
-   locally-diverged `main` skips the refresh silently. Only then run `python3 scripts/skills_install.py --report`, then
-   `python3 scripts/skills_install.py` to install, and confirm `--report`'s snapshot now reads
-   current. The two channels hold different things. The Codex and opencode copy keeps the
-   revision it was taken from, the promoted `main` here. The Claude Code channel loads the
-   registered checkout in place, the one `--report` names under `live`, and serves whatever it
-   holds at read time. Where that is this checkout, once step 8 returns it to `develop`, Claude
-   Code sessions on this machine load `develop`. `--report` exits on the snapshot alone. This step runs whether step 5
+7. In the hub, when the chosen scope includes a release, refresh this machine's Codex and opencode
+   copy from the promoted `main` in a detached worktree of its own, never by switching an existing
+   checkout to `main`, since the checkout Claude Code loads in place would move with it. Run `git fetch origin main`, then `git worktree add --detach
+   <worktree> origin/main` at a new path in the fleet worktree layout, and from that worktree run
+   `python3 scripts/skills_install.py --snapshot-only`, then `python3 scripts/skills_install.py
+   --report`, and confirm its snapshot reads current. A fresh worktree holds nothing uncommitted
+   or ignored under `.agents/skills/` or `.claude-plugin/`, the two paths the installer reads, so
+   the copy holds exactly the promoted commit. `--snapshot-only` leaves the Claude Code
+   registration untouched, and that channel needs no refresh here: it loads the registered
+   directory in place, the one `--report` names under `live`, and serves whatever it holds at
+   read time, so where that is the primary checkout on `develop`, Claude Code sessions on this
+   machine load `develop`. Where `live.vcs` reads `archive`, that directory is the tree the hub's
+   `host-setup/bootstrap.sh` or `bootstrap.ps1` keeps rather than a checkout, and it holds what
+   that bootstrap fetched, the commit `live.commit` names where it is not null, until
+   `bootstrap.sh --skills` or `bootstrap.ps1 -Skills` runs again, which this step does not do.
+   From the same worktree, also run `python3 host-setup/agent-safety/claude/install.py --report`,
+   and report any result other than CURRENT to the maintainer. The host-safety kit, its rendered
+   `CLAUDE.md` included, is refreshed only by its own installer. That installer rewrites this
+   machine's hooks and settings, so this step reports it rather than running it.
+   Then remove the worktree with
+   `git worktree remove <worktree>`, whatever either report said. Removing it leaves the skills
+   snapshot and its stamp unchanged, and a result that does not read current is reported to the
+   maintainer. The skills `--report` exits on the snapshot alone. This step runs whether step 5
    or 6 dispatched, skipped, or failed a release, since it is gated only on the chosen scope,
    never on the release outcome. This refreshes only the machine running
    this session, per skill-lifecycle, every other machine still refreshes on its own next run or
@@ -147,10 +158,12 @@ skill covers all of it, scoped down by what the maintainer actually asks for.
    failure, an ambiguous run match, a timeout, a failed run, or a hub Skills refresh all still
    reach this step, the merge in step 3 already landed by then. Two parts, both required, neither
    optional:
-   - The promotion PR's own worktree: fetch and prune, remove the worktree, then fast-forward the
-     base clone to `develop`. Removing first, not after, matters: the base clone cannot check out
-     `develop` while the promotion worktree still has it checked out, one branch checked out in
-     two worktrees at once is refused outright. Never delete `develop`, it is the promotion PR's
+   - The promotion PR's own worktree: fetch and prune, remove the worktree, then bring the base
+     clone to current `develop`, checking `develop` out first only where it sits on another
+     branch, and fast-forwarding it with `git merge --ff-only origin/develop`. Where that checkout
+     is needed, removing first, not after, matters: the base clone cannot check out `develop`
+     while the promotion worktree still has it checked out, one branch checked out in two
+     worktrees at once is refused outright. Never delete `develop`, it is the promotion PR's
      own head, and the repo's auto-delete-head-branches setting is kept off fleet-wide for exactly
      this reason, so nothing does this automatically.
    - A defensive sweep for anything drive-pr's own cleanup should already have removed but might
@@ -233,5 +246,8 @@ skill covers all of it, scoped down by what the maintainer actually asks for.
 
 - A merge conflict, a newly failing check, or a gate item that regressed since drive-pr finished
   are each a stop, report the exact state, never force or retry blindly.
+- A merge refused by `--match-head-commit` means the head moved past the SHA it was given.
+  Attended, stop and report the commits added, named as step 2 names them, and never retry with
+  the new SHA on the old go-ahead. Under an `unattended-handoff` grant, re-run step 2 on the new head instead.
 - `gh pr merge` or `gh workflow run` failing is reported with its actual output, never
   suppressed, never assumed harmless on the agent's side alone.

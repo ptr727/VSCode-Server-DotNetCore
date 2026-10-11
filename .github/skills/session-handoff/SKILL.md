@@ -62,6 +62,26 @@ without trusting the parts of it that have gone stale.
 - **One open handoff issue per track per repository.** A track is a short kebab-case slug naming a
   lane of work, and a session that names no track uses `default`. Parallel lanes each name their
   own, so each closes its own predecessor and neither reads the other's state as current.
+- **A platform lane is for work that needs its platform.** A platform track is one kept for a single
+  host platform, such as `wsl` or `windows`. It takes an issue only when its defect reproduces, or
+  its fix can be verified, on that platform alone. It also needs that no Linux host outside WSL can
+  both fix the issue and verify the fix. An issue meeting both goes to its platform's lane. Any
+  other issue goes to the ordinary backlog, since a lane costs a separate chain and a host-bound
+  session. A defect in WSL interop, the `WSLInterop` binfmt handler, `/mnt/<drive>` paths, or
+  `wslpath` reproduces only inside WSL. So does running a Windows `.exe` from Linux, although WSL
+  runs on Windows. Behavior that differs under Windows PowerShell 5.1 or `winget`, or in Windows
+  path and ACL semantics, reproduces only on Windows. Either still goes to the backlog where a Linux
+  host outside WSL verifies its fix, as a plain unit test of a path translation can. An issue in
+  systemd user scopes, apt, a bash script, or a `pwsh` script run in a Linux container gets no lane
+  by its topic. The two conditions decide it like any other issue. Where only part of an issue needs
+  a platform, the session finding it files each such part as its own issue for its platform's lane.
+  The original is narrowed to the rest, or closed in favor of those issues where nothing is left. A
+  session that may not write issues names the unsplit issue in its report or handoff instead. An
+  issue for a platform whose lane was closed out reopens that lane with `new`, which chains onto the
+  closed link. A platform lane is closed out with no successor once none of its next steps needs its
+  platform. Before that, each remaining step with no issue of its own is filed as one. The lane's
+  last link carries the outcome as a comment, as `AGENTS.md` "Session Scope" closes a track whose
+  work is complete.
 - **The title is for humans**, shaped `Session Handoff [<track>]: <subject>`, which `new` composes
   from the track and the subject it is given, so what a session writes is the subject alone.
   Nothing parses the title, so a maintainer is free to rename one.
@@ -143,8 +163,9 @@ section is the pointer to what to read rather than the answer, and `AGENTS.md` "
 already says stale context is worse than absent. A handoff is context by construction, so this is
 that rule applied to the one artifact built to outlive the session that wrote it.
 
-Read the current link's comments too, with `gh issue view "<n>" --comments`, since `resume` prints
-only the body, and a parking comment or a closing session's answers land in the comments.
+Read the current link's comments too, with `gh issue view "<n>" --repo OWNER/NAME --comments`, since
+`resume` prints only the body, and a parking comment or a closing session's answers land in the
+comments.
 
 Read the chain before re-attempting anything. `resume` prints the current body and indexes the
 closed links behind it, and `chain --grep` searches the bodies it walks for a regular expression,
@@ -161,7 +182,9 @@ rather than `resume`.
 
 Re-derive a count rather than copying one, and read it with an explicit page size. `gh issue list`
 returns 30 rows unless told otherwise, and a truncated count reads exactly like a repository with
-30 issues, which is worse than an absent count because it gets stated.
+30 issues, which is worse than an absent count because it gets stated. The same holds at any page
+size, so where a read returns as many rows as its limit, raise the limit and read again until it
+returns fewer.
 
 ## The Attended Session
 
@@ -169,15 +192,17 @@ A maintainer resuming work says little, often only "resume the handoff", and tha
 the whole procedure below. Run every step without being reminded of any of them.
 
 1. **Pick the link.** Where the maintainer names an issue, take it. Where none is named, read
-   `gh issue list --label handoff --state open --limit 100 --json number,title,labels,updatedAt`,
-   since `tracks` prints neither labels nor exact update times. Take a link carrying `blocked`
-   first, newest update first among them, since its blocker is a decision only the maintainer can
-   make and the maintainer is now present. Otherwise take the newest update among the rest. An
-   `auto-*` link not carrying `blocked` is skipped unless named, since an `unattended-handoff`
-   worker may hold it right now, and where one is named, confirm with the maintainer that no
-   unattended run is live before working it. Where every open link is skipped, say so and ask the
-   maintainer which to take. Say which link was picked in one line before anything else, so a wrong pick costs one reply
-   rather than a round.
+   `gh issue list --repo OWNER/NAME --label handoff --state open --limit 100 --json
+   number,title,labels,updatedAt`, since `tracks` prints neither labels nor exact update times.
+   Where it returns as many rows as the limit, the list may be truncated, so raise the limit and
+   read again until it returns fewer, rather than picking from a partial list. Take a link carrying
+   `blocked` first, newest update first among them, since its blocker is a decision only the
+   maintainer can make and the maintainer is now present. Otherwise take the newest update among the
+   rest. An `auto-*` link not carrying `blocked` is skipped unless named, since an
+   `unattended-handoff` worker may hold it right now, and where one is named, confirm with the
+   maintainer that no unattended run is live before working it. Where every open link is skipped,
+   say so and ask the maintainer which to take. Say which link was picked in one line before
+   anything else, so a wrong pick costs one reply rather than a round.
 2. **Resume it** per "Resuming" above, comments included, re-deriving live state rather than
    trusting the body.
 3. **Ask what it is blocked on first.** Where the link carries `blocked`, the parking comment names
@@ -288,13 +313,14 @@ comments on whatever link that lane has, closing it too where it was open.
   already names it.
 
 ```sh
-python3 scripts/handoff.py current --repo OWNER/NAME --track "<slug>"
-python3 scripts/handoff.py resume  --repo OWNER/NAME --track "<slug>" --history 5
-python3 scripts/handoff.py chain   --repo OWNER/NAME --track "<slug>" --grep "an escaped regex"
-python3 scripts/handoff.py new     --repo OWNER/NAME --track "<slug>" --title "<subject>" \
+handoff="<hub-checkout>/scripts/handoff.py"   # in the hub itself, scripts/handoff.py
+python3 "$handoff" current --repo OWNER/NAME --track "<slug>"
+python3 "$handoff" resume  --repo OWNER/NAME --track "<slug>" --history 5
+python3 "$handoff" chain   --repo OWNER/NAME --track "<slug>" --grep "an escaped regex"
+python3 "$handoff" new     --repo OWNER/NAME --track "<slug>" --title "<subject>" \
   --body-file "<path>" --dry-run
-python3 scripts/handoff.py link    --repo OWNER/NAME --new "<successor>" --previous "<predecessor>"
-python3 scripts/handoff.py tracks  --repo OWNER/NAME
+python3 "$handoff" link    --repo OWNER/NAME --new "<successor>" --previous "<predecessor>"
+python3 "$handoff" tracks  --repo OWNER/NAME
 ```
 
 Read `--dry-run` output before the first real `new` of a session, since the run can close an issue.
@@ -302,13 +328,25 @@ It is accepted by `new` and `link`, the two subcommands that write, and by no ot
 
 Exit `0` is success, `1` a refusal the caller can act on, a usage error included, and `2` the
 command not having run to an answer, so a refusal and a failure to reach one never share a code. A
-repository missing the `handoff` label is a refusal rather than a degraded empty answer, and it
-names the command that applies the fleet label set except where the label read filled its window,
-which is the one case where the label's absence is unproven rather than established.
+fleet repository missing the `handoff` label, one the hub's `registry/repos.json` lists, is a
+refusal rather than a degraded empty answer, and it names the command that applies the fleet label
+set except where the label read filled its window, which is the one case where the label's absence
+is unproven rather than established.
+
+A fork under the registry's owner that the registry does not list, such as one kept for an
+upstream contribution per `upstream-contribution-workflow`, can host a chain to keep a session's
+state without taking on any fleet configuration. Missing the label there, a read prints a warning
+and answers as an empty chain does, and `new` refuses until it is given `--create-label`, which
+creates the one `handoff` label, confirms it, and then files the first link. Issues turned off stop
+it before any write, naming the command that turns them on. Never apply the fleet label set to such
+a fork. A repository under another owner, or an unregistered one of the owner's that is not a fork,
+refuses before any write. `new` and `link` refuse both whatever the label state, since a label on
+such a repository opens no write there, and that refusal bounds no read.
 
 Creating an issue, commenting on one, closing one, and editing a body are each outward-facing
 writes. `new` creates, comments, and closes, the label riding inside the one create call rather than
-being a write of its own. `link` edits a body, comments, and closes. Each of them is bound by
+being a write of its own, and `new --create-label` adds one write ahead of those, the label itself.
+`link` edits a body, comments, and closes. Each of them is bound by
 `GOVERNANCE.md` "Repository Boundaries and Write Safety" exactly as any other write is. Point them
 at the repository `AGENTS.md` "Session Scope" sends the link to, the one holding the work the next
 session resumes, and at no other. `link` also reaches an issue this chain never created, since the

@@ -51,7 +51,10 @@ maintainer can supply what section 0A lists.
    section 2, then write or repair its `registry/repos.json` entry and confirm it with
    `spec/validate.py`.
 
-4. **The instruction set, before authoring anything.** STANDUP.md section 1A: carry `CLAUDE.md`,
+4. **The instruction set, before authoring anything.** STANDUP.md section 1A. An existing
+   repository that `docs/eol-lf-rollout.md` "Per-Repo Conversion" says needs a line-ending
+   conversion lands that conversion first, as its own merged pull request, and the feature
+   branch from step 2 is cut again from `develop` after it merges. Then carry `CLAUDE.md`,
    `AGENTS.md`, `GOVERNANCE.md`, `CODESTYLE.md`, `WORKFLOW.md` and `AUDIT.md`, adapted rather
    than cloned for the ones that describe a repo, plus `.markdownlint-cli2.jsonc` and
    `cspell.json`. `CLAUDE.md` is the fixed, verbatim `@AGENTS.md`-import file that gets
@@ -85,8 +88,8 @@ maintainer can supply what section 0A lists.
    reported, never from a hand-built or carried copy.
 
 9. **Verify with the audit.** STANDUP.md section 5: run `AUDIT.md` end to end. The repo is stood
-   up only when it passes for its type, or its residual deltas are tracked in
-   `reports/<repo>/audit.md` plus an issue.
+   up only when it passes for its type, or a hub-committed `reports/<repo>/audit.md`
+   plus an issue tracks its residual deltas.
 
 ## Onboarding a new repo type
 

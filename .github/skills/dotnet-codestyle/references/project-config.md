@@ -1,8 +1,14 @@
 # .NET Project Configuration
 
 1. **Target framework**: .NET 10.0 (`<TargetFramework>net10.0</TargetFramework>`).
-2. **AOT compatibility**: `<IsAotCompatible>true</IsAotCompatible>`,
-   `<VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>`.
+2. **AOT compatibility**: `<IsAotCompatible>true</IsAotCompatible>` unconditionally, and
+   `<VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>` only in a
+   `<PropertyGroup Condition="'$(PublishAot)' == 'true'">`, placed in the `.csproj` after it sets
+   `PublishAot` or in `Directory.Build.targets`, never in `Directory.Build.props`, which is imported
+   before the project body and so never sees a `PublishAot` the `.csproj` sets. Reference
+   verification reports `IL3058` for every referenced assembly that lacks `IsAotCompatible` metadata
+   set to `true`, and `TreatWarningsAsErrors` turns that into a failed build on any such
+   dependency, so it runs only where an AOT publish needs it.
 3. **Assembly information**: use semantic versioning, include SourceLink
    (`<PublishRepositoryUrl>true</PublishRepositoryUrl>`), embed untracked sources
    (`<EmbedUntrackedSources>true</EmbedUntrackedSources>`).

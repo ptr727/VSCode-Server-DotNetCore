@@ -222,17 +222,41 @@ the hooks immediately after creating or attaching the worktree, before the first
 shared `core.hooksPath` value does not make generated files such as `.husky/_/husky.sh` appear
 in the new tree.
 
-- **Husky.Net:** When `.husky/pre-commit` sources `.husky/_/husky.sh` and the local .NET tool
-  manifest declares Husky.Net, run `dotnet tool restore`, then `dotnet husky install` from the
-  worktree root.
-- **Python pre-commit:** When `.pre-commit-config.yaml` exists, run `uv tool install pre-commit`
-  once per host if not already installed, then `pre-commit install` from the worktree root.
-  `pre-commit` is never a project dependency, so this is the same regardless of profile.
+- **Husky.Net:** When `.husky/pre-commit` sources `.husky/_/husky.sh`, the local .NET tool
+  manifest declares Husky.Net, and `git config core.hooksPath` already reads `.husky`, run
+  `dotnet tool restore`, then `dotnet husky install` from the worktree root. That generates the
+  runtime in this tree and writes `core.hooksPath` back to the value it already holds. Where the
+  setting reads anything else, the install would change it for every checkout, so the
+  linked-worktree bullet below applies. In a standalone clone, whose config and hooks are its
+  own, run the same two commands there whatever the setting reads.
+- **Python pre-commit:** When `.pre-commit-config.yaml` exists, check for the hook the new tree
+  will run before installing anything, from the worktree root, with
+  `test -x "$(git rev-parse --git-path hooks)/pre-commit"`. In a linked worktree with no
+  `core.hooksPath` set, that path is the base clone's shared hooks directory, so a hook already
+  there is the one every checkout runs, and the step is done. Where none is present in a linked
+  worktree, the bullet below applies. In a standalone clone the hooks directory is the clone's
+  own, so run `uv tool install pre-commit` once per host if not already installed, then
+  `pre-commit install` there. `pre-commit` is never a project dependency, so this is the same
+  regardless of profile.
+- **Never change a shared hook or its setting from a linked worktree.** A linked worktree is one
+  where `git rev-parse --git-dir` and `git rev-parse --git-common-dir`, both run from the worktree
+  root, print different paths. Its git config is the base clone's, and so is its hooks directory
+  when no `core.hooksPath` is set, so an installer that changes either there changes it for every
+  checkout of the repository, the maintainer's own included. Rewriting a setting to the value it
+  already holds, as the Husky.Net step above does, changes nothing and is not this case. Switching
+  installers is the same act, since `prek install` over a pre-commit framework hook moves the
+  original aside and chains to it, which has left every commit in every checkout failing on the
+  chained script. A missing or wrong shared hook is reported to the maintainer, not repaired from
+  the worktree.
 - **Repository override:** Follow a repository's explicit hook-setup instructions when they
-  differ from these standard cases. Do not infer a replacement command from the language alone.
+  differ from these standard cases, except that none of them changes a shared hook or setting
+  from a linked worktree, per the bullet above. Do not infer a replacement command from
+  the language alone.
 
 Treat hook preparation as worktree setup, not as recovery after a rejected commit. If setup
 fails, report that boundary and fix the setup. Never bypass the hook to make the commit succeed.
+A commit-time `core.hooksPath` override, `git -c core.hooksPath=<dir> commit`, is a bypass too,
+since git then runs whatever that directory holds, and nothing where it holds nothing.
 
 ## Listing and Cleanup
 
