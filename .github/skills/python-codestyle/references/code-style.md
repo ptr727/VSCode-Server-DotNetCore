@@ -39,8 +39,8 @@
 ## Type hints
 
 - **All public APIs are typed.** The repo's configured type checker runs on `src/` (pyright strict
-  via `[tool.pyright]` `strict = ["src"]`, or mypy where that is the CI checker), and tests run in
-  the checker's looser/standard mode.
+  via `[tool.pyright]` `strict = ["src"]`, or mypy's strict flags where mypy is the CI checker),
+  and tests run in the checker's looser/standard mode.
 - **Use modern syntax**: `list[int]` not `List[int]`, `dict[str, X]` not `Dict[str, X]`,
   `X | None` not `Optional[X]`, `from __future__ import annotations` only when needed for forward
   references.

@@ -9,13 +9,16 @@ summary, preserve the existing ending and verify with a byte scan, covers that c
 
 - **`.editorconfig` sets the line ending.** `[*] end_of_line = lf` is the default, every file
   type is LF unless pinned otherwise, with CRLF pinned for the one exception Windows requires:
-  `*.bat` and `*.cmd` (cmd.exe's line handling is unreliable on LF). Only the CRLF exception is
-  declared, the redundant per-type LF rules are intentionally omitted, since the default already
+  `*.bat` and `*.cmd` (cmd.exe's line handling is unreliable on LF). Only CRLF pins are declared,
+  the redundant per-type LF rules are intentionally omitted, since the default already
   gives shell scripts, Dockerfiles, workflow YAML, `uv.lock`, and every shebang-executed `.py`
   the ending they need without a path-specific pin.
-- **`.gitattributes` mirrors the repository-wide defaults**: `* text=auto eol=lf` normalizes every
-  detected text file to LF while leaving binary files byte-preserved. `*.bat` and `*.cmd` override
-  that default to CRLF. Do not add per-language or per-file LF pins where the global LF default
+- **`.gitattributes` mirrors the repository-wide defaults**: `* text=auto eol=lf` normalizes a
+  detected text file to LF when the file is first added or renormalized with
+  `git add --renormalize`, while a file already committed with CRLF stays CRLF on a plain re-add.
+  It leaves byte-preserved only what Git's heuristic detects as binary, so a text-shaped file whose
+  bytes have to be kept takes a `-text` or `binary` pin of its own.
+  `*.bat` and `*.cmd` override that default to CRLF. Do not add per-language or per-file LF pins where the global LF default
   already applies. The CRLF-native exception for POSIX-executed paths is defined below.
 - **Both files are required together.** `.editorconfig` governs the editor, `.gitattributes`
   governs git (checkout, commit, `--renormalize`). A repo missing either file, or whose
@@ -72,7 +75,7 @@ consumer may depend on), still pair a `.gitattributes` pin with a matching `.edi
 override, since the git pin alone is not enough there, `.gitattributes` governs git while the
 editor follows `.editorconfig`. For a byte-preserve directory, disable all editor normalization,
 not just EOL: `[<dir>/**]` with `charset = unset`, `end_of_line = unset`, `insert_final_newline =
-false`, `trim_trailing_whitespace = false` (`unset` is EditorConfig's spec-defined special value
+unset`, `trim_trailing_whitespace = false` (`unset` is EditorConfig's spec-defined special value
 that removes an inherited property, and `**` is needed rather than `*` so a nested file under the
 directory is covered too, since `*` excludes `/` and only matches one path component).
 
@@ -110,8 +113,10 @@ JSONC (it has `//` comments), so strip them before JSON-parsing it.
 
 Editing CRLF files programmatically with a regex has a sharper trap: `.` matches `\r`, so a
 captured line keeps its carriage return and rejoining with `\r\n` yields `CRCRLF`. A text-mode
-rewrite has the mirror failure, silently flattening CRLF to LF. Prefer line-based edits
-(`splitlines(keepends=True)`) or literal replacement over regex reassembly. In Python the
-text-mode failure is the default: `Path.read_text()` decodes through universal newlines and
-`write_text()` writes `\n` back, so a read-edit-write round trip flattens the whole file while the
-edit itself looks correct. Pass `newline=''` to both, or work in bytes.
+rewrite has the mirror failure, silently rewriting every line ending to the host's own. Prefer
+line-based edits (`splitlines(keepends=True)`) or literal replacement over regex reassembly. In
+Python the text-mode failure is the default. `Path.read_text()` decodes through universal
+newlines, and `write_text()` translates each `\n` to `os.linesep`. A read-edit-write round trip
+therefore rewrites every ending in the file while the edit itself looks correct. Work in bytes, or
+use `open()` with `newline=''` on both the read and the write. `Path.read_text()` is no substitute,
+since it accepts `newline` only on Python 3.13 and newer and raises `TypeError` below it.

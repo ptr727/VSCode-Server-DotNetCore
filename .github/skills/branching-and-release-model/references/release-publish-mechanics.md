@@ -46,9 +46,9 @@ Pick by where each artifact *goes*, not by language:
   hook or a build-nuget hook per output, each uploading `release-asset-<branch>-<target>`. This is where the
   .NET `dotnet publish` or `dotnet build` lives, though a package push does not. The hub default takes an explicit
   project path, and a project needing different build behavior replaces the hook. A data-only
-  repo's own output (e.g. a symbol library) is not yet
-  expressible as a hub hook or an `enable_*` input, so it stays a carried leaf until the hub task
-  grows one.
+  repo's own output (e.g. a symbol library) is a file target, which the `build-release-asset` hook
+  builds when the caller sets `enable_release_asset: true`. The hook has no hub default, so the caller provides
+  `.github/actions/build-release-asset/action.yml` and the task fails without it.
 - **Package-registry pushes** (NuGet.org, PyPI): both are split, and the push never sits in the
   hook. OIDC trusted publishing validates the token's `job_workflow_ref` claim, which names the
   workflow the job actually ran from, so a push from a hub-hosted task is rejected at the token

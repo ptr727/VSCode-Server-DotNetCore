@@ -214,7 +214,7 @@ parameterized tests. A test project on `xunit.v3` 4.0.0 or later is MTP-based, a
 
 ## Project configuration
 
-.NET 10.0 target, AOT-compatible (`IsAotCompatible=true`, `VerifyReferenceAotCompatibility=true`),
+.NET 10.0 target, AOT-compatible (`IsAotCompatible=true`, with `VerifyReferenceAotCompatibility=true` only under the `PublishAot` condition),
 SourceLink, embedded untracked sources, `InternalsVisibleTo` for test/benchmark access. See
 `references/project-config.md` for the full property list.
 
