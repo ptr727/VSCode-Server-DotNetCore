@@ -29,6 +29,18 @@ Each language defines a **clean-compile** verification: the combination of build
   3. The **root / shared config** only when the suppression is genuinely applicable to **every** project in the repo.
 - **Never blanket-relax a batch of rules project-wide** to get a port to build. The per-language mechanics (which attribute, which config key) are in each language section.
 
+### Operations and Failure Messages
+
+- **Let the real operation be the check, not a prediction of it.** Attempt the read, the write, or the call itself, and turn its failure into a clean refusal. Do not probe first with an existence, type, or permission test. Where the operation could block or succeed on the wrong kind of target, judge what it opened instead. A probe is a second model of the operation. It misjudges each case its author did not foresee, such as a dangling link, a link loop, or a platform's own permission model. The operation cannot disagree with itself.
+- **A failure message states the error, the path or other target, and the remedy, and claims nothing about the state the failure left.** The error the operation raised is the one fact the code holds at that point. A description of what the failure left behind is a prediction. It reads false once an unforeseen state reaches the message, such as a file written in full that then fails to close. A remedy such as "fix what it names, then re-run" needs no such claim.
+
+### Command-Line Arguments
+
+A command-line script is one a person or an agent runs by name. A hook its host runs, taking its input from that host rather than from a command line, is not one.
+
+- **Every command-line script answers `--help` and `-h`** by printing its usage and exiting 0, changing nothing. An agent learns a script's interface by asking it, so a script that reads `--help` as an input acts in a way nobody predicted.
+- **An argument the script does not recognize is refused**, with a non-zero exit before any read or write. An unrecognized first argument is never taken as a default mode or as a target.
+
 ### Markdown and Spelling
 
 These apply repo-wide, in every directory: Markdown lints clean via `markdownlint-cli2` against the shared config, spelling is US English via CSpell against the shared `cspell.json`, the CI spelling gate covers `README.md` and `HISTORY.md` only, `HISTORY.md` mirrors the README's opening, and "Markdown" is a proper noun in prose. A repo excluding a subtree of its own that it does not treat as authored prose, a committed data archive, a vendored theme, or a hand-maintained record, puts a `.markdownlint-cli2.jsonc` carrying its own `ignores` beside that content rather than editing the shared root config, whose contents are fleet-fixed. Those `ignores` patterns resolve against the directory holding them rather than against the repo root, so a repo-root-relative entry there matches nothing and reports no error saying so, and excluding through the CI workflow's own negated Markdown glob input instead is a CI-only fix that leaves the same files flagged for anyone running the linter locally. The full rules are in the `comment-and-doc-style` Skill referenced above.
@@ -45,13 +57,13 @@ This is packaged as the `dotnet-codestyle` Skill at `.agents/skills/dotnet-codes
 
 *This section applies only to the Python side. A repo with no Python projects still carries it (the file is carried whole) and ignores it.*
 
-The style guide for any Python project(s) in this repo: the build-versus-lint-only profile split, the uv/ruff/pyright/mypy/pytest toolchain, `src` layout, formatting and linting, comment and docstring conventions, type hints, naming, imports, patterns to avoid, test conventions including the `pytest-cov` dependency and coverage selector a build-profile repo with tests owes under `WORKFLOW.md` D1.6, and versioning.
+The style guide for any Python project(s) in this repo: the build-versus-lint-only profile split, the uv/ruff/pyright/mypy/pytest toolchain, `src` layout, formatting and linting, comment and docstring conventions, type hints, naming, imports, patterns to avoid, test conventions including the `pytest-cov` dependency and coverage selector a Python directory running pytest owes under `WORKFLOW.md` D1.6, and versioning.
 
 This is packaged as the `python-codestyle` Skill at `.agents/skills/python-codestyle/SKILL.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo. The summary above sketches the scope. Read the skill for the full rules and the profile-adaptation guidance.
 
 ## Shell
 
-Bash, and only where a program cannot be Python: a bootstrap that installs the interpreter cannot be written in it, and a host tool that must run before a development toolchain exists cannot depend on Python either. Everything else is Python, with a test under its own scripts tree's `tests/` directory. The mandatory `set -Eeuo pipefail` header, the pipefail-versus-early-reader pitfall, self-locating scripts, the `shellcheck`-plus-`shfmt` clean-compile, and the why-not-what comment rule are packaged as the `shell-codestyle` Skill at `.agents/skills/shell-codestyle/SKILL.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo. Read the skill for the full rules. Run the clean-compile check itself per `GOVERNANCE.md` "Running the Linters Locally (Known-Working Invocations)", a hub-only section read in a hub checkout rather than carried into every fleet repo, not by probing `command -v shellcheck`.
+Bash, and only where a program cannot be Python: a bootstrap that installs the interpreter cannot be written in it, and a host tool that must run before a development toolchain exists cannot depend on Python either. Everything else is Python, with a test under its own scripts tree's `tests/` directory. The mandatory `set -Eeuo pipefail` header, the pipefail-versus-early-reader pitfall, self-recursive command shims, self-locating scripts, the `shellcheck`-plus-`shfmt` clean-compile, and the why-not-what comment rule are packaged as the `shell-codestyle` Skill at `.agents/skills/shell-codestyle/SKILL.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo. Read the skill for the full rules. A script's own arguments follow "Command-Line Arguments" under General, which the Skill carries whole. Run the clean-compile check itself per `GOVERNANCE.md` "Running the Linters Locally (Known-Working Invocations)", a hub-only section read in a hub checkout rather than carried into every fleet repo, not by probing `command -v shellcheck`.
 
 <!-- Repo -->
 
