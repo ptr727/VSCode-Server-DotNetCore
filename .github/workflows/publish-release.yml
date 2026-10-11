@@ -8,7 +8,7 @@ on:
     - cron: '0 2 * * MON'
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 # GITHUB_TOKEN gets no scope by default, and each job below grants only what its hub task writes with.
