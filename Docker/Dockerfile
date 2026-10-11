@@ -14,7 +14,7 @@
 # Test linux/amd64 target
 # docker buildx build --load --progress plain --no-cache --platform linux/amd64 --file Docker/Dockerfile --tag testing:latest .
 # docker run -it --rm --name Testing testing:latest /bin/bash
-# docker run -d -p 8443:8443 --name Testing testing:latest
+# docker run -d --name Testing -p 8443:8443 testing:latest
 # http://localhost:8443/
 # docker stop Testing
 # docker rm Testing
