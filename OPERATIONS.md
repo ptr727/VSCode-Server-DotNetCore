@@ -10,7 +10,7 @@ This repo compiles nothing, so it has no clean-compile task. The gate is the doc
 docker run --rm -v "$PWD":/work -w /work davidanson/markdownlint-cli2 '**/*.md'
 docker run --rm -v "$PWD":/work -w /work ghcr.io/streetsidesoftware/cspell --no-progress README.md HISTORY.md
 docker run --rm -v "$PWD":/work -w /work rhysd/actionlint
-docker run --rm -v "$PWD":/check -w /check mstruebing/editorconfig-checker:latest
+docker run --rm -v "$PWD":/check -w /check ghcr.io/editorconfig-checker/editorconfig-checker:latest
 ```
 
 Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds, which is what CI's smoke build does on every push:

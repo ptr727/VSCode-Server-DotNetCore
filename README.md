@@ -96,7 +96,7 @@ Licensed under the [MIT License][license]\
 
 [docker-develop-shield]: https://img.shields.io/docker/v/ptr727/vscode-server-dotnetcore/develop?label=develop&logo=docker
 [docker-latest-shield]: https://img.shields.io/docker/v/ptr727/vscode-server-dotnetcore/latest?label=latest&logo=docker
-[github-pre-release-shield]: https://img.shields.io/github/v/release/ptr727/VSCode-Server-DotNetCore?include_prereleases&logo=github&label=GitHub%20Pre-Release
+[github-pre-release-shield]: https://img.shields.io/github/v/release/ptr727/VSCode-Server-DotNetCore?include_prereleases&filter=*-g*&logo=github&label=GitHub%20Pre-Release
 [github-release-shield]: https://img.shields.io/github/v/release/ptr727/VSCode-Server-DotNetCore?logo=github&label=GitHub%20Release
 [last-commit-shield]: https://img.shields.io/github/last-commit/ptr727/VSCode-Server-DotNetCore?logo=github&label=Last%20Commit
 [license-shield]: https://img.shields.io/github/license/ptr727/VSCode-Server-DotNetCore?label=License

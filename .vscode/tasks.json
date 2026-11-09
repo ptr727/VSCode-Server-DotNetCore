@@ -8,7 +8,7 @@
             "label": "Lint: EditorConfig",
             "type": "process",
             "command": "docker",
-            "args": [ "run", "--rm", "--pull=always", "-v", "${workspaceFolder}:/check", "-w", "/check", "mstruebing/editorconfig-checker:latest" ],
+            "args": [ "run", "--rm", "--pull=always", "-v", "${workspaceFolder}:/check", "-w", "/check", "ghcr.io/editorconfig-checker/editorconfig-checker:latest" ],
             "problemMatcher": [],
             "presentation": { "showReuseMessage": false, "clear": false }
         },
