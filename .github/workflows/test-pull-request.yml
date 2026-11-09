@@ -1,10 +1,9 @@
 name: Test pull request action
 
 # Thin caller: the lint gate and the smoke build are the hub's reusable validate-task.yml and build-release-task.yml.
-# CI runs on push to every branch with no paths filter, so a pull request tests its own head, and a fork contribution lands on an in-repo branch before merging.
+# The lint gate runs on every pull request, and the smoke build only where the image's inputs changed (D1.1, D1.4).
 on:
-  push:
-    branches: ['**']
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -15,10 +14,31 @@ permissions: {}
 
 jobs:
 
-  # A branch-deletion push carries an all-zero SHA that nothing can check out, so every job skips it.
+  # The one image target lists its own paths, so a workflow-only or docs-only pull request marks nothing (D1.1, D1.4).
+  # The Dockerfile copies nothing from the tree, so only it and the version file change the image's sources.
+  # A hub pin bump changes the build path too, and D1.4 leaves that bump unbuilt.
+  changes:
+    name: Detect changed targets job
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      release: ${{ steps.filter.outputs.release }}
+    steps:
+      - name: Checkout code step
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Filter changed paths step
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            release:
+              - 'Docker/Dockerfile'
+              - 'version.json'
+
   validate:
     name: Validate job
-    if: ${{ !github.event.deleted }}
     uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@df04adaee6c5928177535e40eb5b9310638f501e # 2.0.1343
     permissions:
       contents: read
@@ -26,7 +46,8 @@ jobs:
   # Never publishes and never pushes: smoke builds linux/amd64 only.
   smoke-build:
     name: Smoke build job
-    if: ${{ !github.event.deleted }}
+    needs: [changes]
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.release == 'true'
     uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@df04adaee6c5928177535e40eb5b9310638f501e # 2.0.1343
     permissions:
       contents: read
@@ -38,7 +59,9 @@ jobs:
       smoke: true
       github: false
       dockerhub: false
-      branch: ${{ github.ref_name }}
+      # On a pull_request event github.ref_name is the PR ref (for example 123/merge), never the target branch.
+      # The logical branch therefore reads base_ref first and falls back to ref_name on a dispatch.
+      branch: ${{ github.base_ref || github.ref_name }}
       enable_docker: true
       enable_dotnet_publish: false
       enable_nuget: false
@@ -47,17 +70,20 @@ jobs:
       docker_image: ptr727/vscode-server-dotnetcore
 
   # Required checks cannot bind a conditional job, so this always-run aggregator is the ruleset-bound status check.
+  # It treats a skipped smoke-build (an unchanged image) as pass, and blocks on failure or cancelled (D1.5).
   # Its name is the ruleset context: rename it and the ruleset together.
+  # Only a pull_request run takes the ruleset-bound name (D1.5).
+  # So a dispatch on a pull request's head cannot post the required check without that pull request's gates.
   check-workflow-status:
-    name: Check pull request workflow status job
+    name: ${{ github.event_name == 'pull_request' && 'Check pull request workflow status job' || 'Check workflow status job' }}
     runs-on: ubuntu-latest
-    needs: [validate, smoke-build]
-    if: ${{ always() && !github.event.deleted }}
+    needs: [changes, validate, smoke-build]
+    if: always()
     steps:
       - name: Check workflow results step
         run: |
           set -Eeuo pipefail
-          for result in "validate:${{ needs.validate.result }}" "smoke-build:${{ needs.smoke-build.result }}"; do
+          for result in "changes:${{ needs.changes.result }}" "validate:${{ needs.validate.result }}"; do
             name="${result%%:*}"
             value="${result#*:}"
             if [[ "$value" != "success" ]]; then
@@ -65,3 +91,7 @@ jobs:
               exit 1
             fi
           done
+          if [[ "${{ needs.smoke-build.result }}" != "success" && "${{ needs.smoke-build.result }}" != "skipped" ]]; then
+            echo "::error::Job 'smoke-build' did not succeed (${{ needs.smoke-build.result }})."
+            exit 1
+          fi
