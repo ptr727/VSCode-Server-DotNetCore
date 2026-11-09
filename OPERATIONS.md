@@ -13,7 +13,9 @@ docker run --rm -v "$PWD":/work -w /work rhysd/actionlint
 docker run --rm -v "$PWD":/check -w /check ghcr.io/editorconfig-checker/editorconfig-checker:latest
 ```
 
-Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds, which is what CI's smoke build does on every push:
+CI also runs the hub's prose gate on every pull request, scoped to the lines the pull request changes. Run the same gate with this repository as the working directory, from a checkout of `ptr727/ProjectTemplate` at the commit this repository's workflows pin: `python3 <hub-checkout>/scripts/prose_lint.py --diff "$(git merge-base origin/develop HEAD)"`. The merge base matches the lines CI reads, where a bare `origin/develop` would also flag what `develop` changed since the branch point. A pull request that adds or edits a comment line needs the `comments` label, and the local run needs `--allow-comments`. The gate reads the label live, so re-run the failed job after adding it rather than pushing again.
+
+Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds. CI's smoke build does the same on a pull request that changes the image's inputs:
 
 ```shell
 docker buildx build --load --progress plain --platform linux/amd64 --file Docker/Dockerfile --tag testing:latest .
@@ -23,7 +25,7 @@ docker run -d --rm -p 8443:8443 --name testing testing:latest
 
 The first `docker run` opens a shell in the image. The second starts code-server and serves it on `http://localhost:8443/`.
 
-**What CI cannot exercise.** The Docker Hub push, the Docker Hub overview push, and the GitHub release run only on a real publish, so a pull request proves the image builds for `linux/amd64` and never proves it builds for `linux/arm64` or uploads. Whether code-server actually starts and the .NET SDKs work inside the running container is covered by no automated check. Start the image detached, as above, and open `http://localhost:8443/` to check it by hand when a change could affect either.
+**What CI cannot exercise.** The Docker Hub push, the Docker Hub overview push, and the GitHub release run only on a real publish. So a pull request that changes the image's inputs proves the image builds for `linux/amd64`. It never proves the image builds for `linux/arm64` or uploads. A pull request that only bumps a hub workflow pin is not smoke-built, per `WORKFLOW.md` D1.4. Dependabot auto-merges such a bump, and a dispatch cannot hold it, since a dispatched run posts a context no ruleset requires. So once it merges, dispatch [`test-pull-request.yml`](./.github/workflows/test-pull-request.yml) on its base branch, `develop` or `main`, to build at the new pin. Whether code-server actually starts and the .NET SDKs work inside the running container is covered by no automated check. Start the image detached, as above, and open `http://localhost:8443/` to check it by hand when a change could affect either.
 
 ## Runbooks
 
@@ -39,7 +41,7 @@ The first `docker run` opens a shell in the image. The second starts code-server
 
 ## Configuration Layout
 
-**CI runs on push, on every branch.** [`test-pull-request.yml`](./.github/workflows/test-pull-request.yml) has no `pull_request` trigger and no paths filter, so the lint gate and the smoke build run on every push, and a pull request that edits a reusable workflow tests its own copy. A fork pull request cannot push here, so it produces no run and cannot satisfy the required check. A maintainer lands such a contribution on an in-repo branch, which pushes and so validates, before merging it. A branch-deletion push is skipped.
+**CI runs on every pull request.** [`test-pull-request.yml`](./.github/workflows/test-pull-request.yml) triggers on `pull_request` and `workflow_dispatch`, so a branch with no pull request gets no run. The lint gate runs on every pull request. The smoke build runs only where `Docker/Dockerfile` or `version.json` changed, or on a dispatch, per `WORKFLOW.md` D1.1 and D1.4. So a workflow-only or docs-only pull request is linted but not built. Only a `pull_request` run posts the ruleset-bound `Check pull request workflow status job` context, per `WORKFLOW.md` D1.5. A dispatch posts `Check workflow status job` instead, so it can never satisfy the required check on a pull request's head. A fork pull request runs without this repository's secrets, so one that changes the image fails at the smoke build's Docker Hub login. A maintainer lands such a contribution on an in-repo branch and opens the pull request from there.
 
 **Workflows reach the hub.** Every workflow here is a thin caller of a hub reusable task, pinned to a hub release commit: the lint gate is `validate-task.yml`, the smoke build and the release are `build-release-task.yml`, and the merge-bot is `merge-bot-task.yml`. A change to a gate or to the build lands in the hub, and it reaches this repo when the pin moves. A publish-time failure inside a hub task is diagnosed from the run log against the pinned hub commit rather than against a file in this repo.
 
