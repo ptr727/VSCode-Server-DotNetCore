@@ -22,8 +22,8 @@ description: >-
    - `python-codestyle` for Python changes.
    - `shell-codestyle` for shell changes.
    - `workflow-ci-contract` for GitHub Actions and CI/CD changes.
-4. Treat a missing executable on `PATH` as no evidence that its check is unavailable. Read the
-   repository's documented local invocation before reporting a check as skipped.
+4. Treat a missing executable on `PATH` as no evidence that a check the requester names is
+   unavailable. Read the repository's documented local invocation before reporting it as skipped.
 
 Do not substitute a familiar convention for the repository's written contract. Report a
 conflict between instructions instead of silently choosing one.
@@ -32,7 +32,11 @@ conflict between instructions instead of silently choosing one.
 
 Review for correctness, regressions, security, compatibility, error handling, concurrency,
 resource lifetime, tests, design, and contract drift. Follow data and control flow beyond the edited
-lines when the behavior depends on unchanged callers or consumers.
+lines when the behavior depends on unchanged callers or consumers. Beyond reading files, git state,
+and the pull request, run no command the review's requester does not name. Running code is otherwise
+left to the author and CI, since even a `--help` run can build environments and start servers that
+`git status` misses. A finding that only an unnamed command could prove still counts as supported
+once it names that command.
 
 For each candidate finding:
 
@@ -59,7 +63,7 @@ A change is cheapest to shape before it is written. Hardening nothing calls for,
 - **A defect class seen a second time gets one primitive, and every site moves onto it.** A check written at each site repeats its own platform and edge-case defects at every site. A read that can block on a named pipe, for one, meets a new platform difference at each site that guards it alone. One reader that opens without blocking and judges the open descriptor closes that class everywhere. Sites in files a change does not touch move in a change of their own, filed as one issue naming each.
 - **Complexity is a cost that needs a reason.** Code that answers no requirement and no realistic threat is removed rather than maintained, since each later review and each later change reads it again.
 
-`GOVERNANCE.md` "Design Before Code" keeps the full rules, and the `fleet-code-review` Skill at `.agents/skills/fleet-code-review/SKILL.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo, carries it whole as a generated include and surfaces it wherever a change is reviewed.
+`GOVERNANCE.md` "Design Before Code" keeps the full rules. The `fleet-code-review` Skill at `.agents/skills/fleet-code-review/SKILL.md` in the hub carries it whole as a generated include and surfaces it wherever a change is reviewed. That path is not a repo-relative link, since it is hub-local and not carried into every fleet repo.
 
 <!-- /include -->
 
@@ -75,13 +79,16 @@ Hardening is spent where a failure can actually occur. A defense against a case 
 - **A review finding asking for hardening the bullets above rule out is itself declined**, with no fix and no issue. The decline cites this section and the input or deployment that rules the case out. This binds the reviewer as much as the author, so a reviewer does not raise such a finding. A review brief asks after races, coercions, and platform differences only where the code's deployment can produce one.
 - **A repository names its own boundaries where the classes above leave them unclear.** Its `OPERATIONS.md` lists which concrete inputs are trusted and which are not, under `Configuration Layout`. A session or a reviewer then applies this section without re-deriving it. A repository naming none uses the classes above.
 
-`GOVERNANCE.md` "Trust Boundaries and Hardening Effort" keeps the full rules, and the `fleet-code-review` Skill at `.agents/skills/fleet-code-review/SKILL.md` in the hub, not a repo-relative link since that path is hub-local and not carried into every fleet repo, carries it whole as a generated include and surfaces it wherever a change is reviewed.
+`GOVERNANCE.md` "Trust Boundaries and Hardening Effort" keeps the full rules. The `fleet-code-review` Skill at `.agents/skills/fleet-code-review/SKILL.md` in the hub carries it whole as a generated include and surfaces it wherever a change is reviewed. That path is not a repo-relative link, since it is hub-local and not carried into every fleet repo.
 
 <!-- /include -->
 
 Review carried fleet content by intent and fidelity. A byte-locked reference to a path that one
 downstream repository does not carry is not a broken link. A substantive defect in canonical
 content remains a finding, with the fix located at its canonical source.
+
+A finding that a stated count is wrong suggests removing the count where it is incidental, per
+`GOVERNANCE.md` "Incidental Counts", rather than correcting the number.
 
 ## Publish Every Finding
 
