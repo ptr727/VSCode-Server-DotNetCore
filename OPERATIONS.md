@@ -13,7 +13,7 @@ docker run --rm -v "$PWD":/work -w /work rhysd/actionlint
 docker run --rm -v "$PWD":/check -w /check mstruebing/editorconfig-checker:latest
 ```
 
-Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds, which is what CI's smoke build does on every push:
+Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds. CI's smoke build does the same on a pull request that changes the image's inputs:
 
 ```shell
 docker buildx build --load --progress plain --platform linux/amd64 --file Docker/Dockerfile --tag testing:latest .
@@ -39,7 +39,7 @@ The first `docker run` opens a shell in the image. The second starts code-server
 
 ## Configuration Layout
 
-**CI runs on every pull request.** [`test-pull-request.yml`](./.github/workflows/test-pull-request.yml) triggers on `pull_request` and `workflow_dispatch` with no paths filter. So the lint gate and the smoke build run on every pull request, and a branch with no pull request gets no run. Only a `pull_request` run posts the ruleset-bound `Check pull request workflow status job` context, per `WORKFLOW.md` D1.5. A dispatch posts `Check workflow status job` instead, so it can never satisfy the required check on a pull request's head. A fork pull request runs without this repository's secrets, which the smoke build's Docker Hub login reads. A maintainer lands such a contribution on an in-repo branch and opens the pull request from there.
+**CI runs on every pull request.** [`test-pull-request.yml`](./.github/workflows/test-pull-request.yml) triggers on `pull_request` and `workflow_dispatch`, so a branch with no pull request gets no run. The lint gate runs on every pull request. The smoke build runs only where `Docker/**`, `.dockerignore`, or `version.json` changed, or on a dispatch, per `WORKFLOW.md` D1.1 and D1.4. So a workflow-only or docs-only pull request is linted but not built. Only a `pull_request` run posts the ruleset-bound `Check pull request workflow status job` context, per `WORKFLOW.md` D1.5. A dispatch posts `Check workflow status job` instead, so it can never satisfy the required check on a pull request's head. A fork pull request runs without this repository's secrets, which the smoke build's Docker Hub login reads. A maintainer lands such a contribution on an in-repo branch and opens the pull request from there.
 
 **Workflows reach the hub.** Every workflow here is a thin caller of a hub reusable task, pinned to a hub release commit: the lint gate is `validate-task.yml`, the smoke build and the release are `build-release-task.yml`, and the merge-bot is `merge-bot-task.yml`. A change to a gate or to the build lands in the hub, and it reaches this repo when the pin moves. A publish-time failure inside a hub task is diagnosed from the run log against the pinned hub commit rather than against a file in this repo.
 
