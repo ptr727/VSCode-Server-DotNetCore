@@ -15,7 +15,7 @@ permissions: {}
 jobs:
 
   # The one image target lists its own paths, so a workflow-only or docs-only pull request marks nothing (D1.1, D1.4).
-  # The Dockerfile copies nothing from the tree, so the build context matters only through .dockerignore.
+  # The Dockerfile copies nothing from the tree, so only its own directory and the version file change the image.
   changes:
     name: Detect changed targets job
     runs-on: ubuntu-latest
@@ -34,7 +34,6 @@ jobs:
           filters: |
             release:
               - 'Docker/**'
-              - '.dockerignore'
               - 'version.json'
 
   validate:
