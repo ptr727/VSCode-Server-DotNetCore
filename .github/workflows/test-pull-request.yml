@@ -1,10 +1,10 @@
 name: Test pull request action
 
 # Thin caller: the lint gate and the smoke build are the hub's reusable validate-task.yml and build-release-task.yml.
-# CI runs on push to every branch with no paths filter, so a pull request tests its own head, and a fork contribution lands on an in-repo branch before merging.
+# The Dockerfile is the only build input, and nearly every change reaches the image.
+# So the smoke build runs on every pull request with no paths filter.
 on:
-  push:
-    branches: ['**']
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -15,10 +15,8 @@ permissions: {}
 
 jobs:
 
-  # A branch-deletion push carries an all-zero SHA that nothing can check out, so every job skips it.
   validate:
     name: Validate job
-    if: ${{ !github.event.deleted }}
     uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@df04adaee6c5928177535e40eb5b9310638f501e # 2.0.1343
     permissions:
       contents: read
@@ -26,7 +24,6 @@ jobs:
   # Never publishes and never pushes: smoke builds linux/amd64 only.
   smoke-build:
     name: Smoke build job
-    if: ${{ !github.event.deleted }}
     uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@df04adaee6c5928177535e40eb5b9310638f501e # 2.0.1343
     permissions:
       contents: read
@@ -38,7 +35,9 @@ jobs:
       smoke: true
       github: false
       dockerhub: false
-      branch: ${{ github.ref_name }}
+      # On a pull_request event github.ref_name is the PR ref (for example 123/merge), never the target branch.
+      # The logical branch therefore reads base_ref first and falls back to ref_name on a dispatch.
+      branch: ${{ github.base_ref || github.ref_name }}
       enable_docker: true
       enable_dotnet_publish: false
       enable_nuget: false
@@ -48,11 +47,13 @@ jobs:
 
   # Required checks cannot bind a conditional job, so this always-run aggregator is the ruleset-bound status check.
   # Its name is the ruleset context: rename it and the ruleset together.
+  # Only a pull_request run takes the ruleset-bound name (D1.5).
+  # So a dispatch on a pull request's head cannot post the required check without that pull request's gates.
   check-workflow-status:
-    name: Check pull request workflow status job
+    name: ${{ github.event_name == 'pull_request' && 'Check pull request workflow status job' || 'Check workflow status job' }}
     runs-on: ubuntu-latest
     needs: [validate, smoke-build]
-    if: ${{ always() && !github.event.deleted }}
+    if: always()
     steps:
       - name: Check workflow results step
         run: |
