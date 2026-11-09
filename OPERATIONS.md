@@ -23,7 +23,7 @@ docker run -d --rm -p 8443:8443 --name testing testing:latest
 
 The first `docker run` opens a shell in the image. The second starts code-server and serves it on `http://localhost:8443/`.
 
-**What CI cannot exercise.** The Docker Hub push, the Docker Hub overview push, and the GitHub release run only on a real publish. So a pull request that changes the image's inputs proves the image builds for `linux/amd64`. It never proves the image builds for `linux/arm64` or uploads. A pull request that only bumps a hub workflow pin is not smoke-built, so dispatch the workflow on its branch where the bump could change the build. Whether code-server actually starts and the .NET SDKs work inside the running container is covered by no automated check. Start the image detached, as above, and open `http://localhost:8443/` to check it by hand when a change could affect either.
+**What CI cannot exercise.** The Docker Hub push, the Docker Hub overview push, and the GitHub release run only on a real publish. So a pull request that changes the image's inputs proves the image builds for `linux/amd64`. It never proves the image builds for `linux/arm64` or uploads. A pull request that only bumps a hub workflow pin is not smoke-built. Dispatch the workflow on its branch where the bump could change the build. Whether code-server actually starts and the .NET SDKs work inside the running container is covered by no automated check. Start the image detached, as above, and open `http://localhost:8443/` to check it by hand when a change could affect either.
 
 ## Runbooks
 
