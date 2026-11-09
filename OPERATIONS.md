@@ -10,7 +10,7 @@ This repo compiles nothing, so it has no clean-compile task. The gate is the doc
 docker run --rm -v "$PWD":/work -w /work davidanson/markdownlint-cli2 '**/*.md'
 docker run --rm -v "$PWD":/work -w /work ghcr.io/streetsidesoftware/cspell --no-progress README.md HISTORY.md
 docker run --rm -v "$PWD":/work -w /work rhysd/actionlint
-docker run --rm -v "$PWD":/check -w /check mstruebing/editorconfig-checker:latest
+docker run --rm -v "$PWD":/check -w /check ghcr.io/editorconfig-checker/editorconfig-checker:latest
 ```
 
 CI also runs the hub's prose gate on every pull request, scoped to the lines the pull request changes. Run the same gate with this repository as the working directory, from a checkout of `ptr727/ProjectTemplate` at the commit this repository's workflows pin: `python3 <hub-checkout>/scripts/prose_lint.py --diff "$(git merge-base origin/develop HEAD)"`. The merge base matches the lines CI reads, where a bare `origin/develop` would also flag what `develop` changed since the branch point. A pull request that adds or edits a comment line needs the `comments` label, and the local run needs `--allow-comments`. The gate reads the label live, so re-run the failed job after adding it rather than pushing again.
