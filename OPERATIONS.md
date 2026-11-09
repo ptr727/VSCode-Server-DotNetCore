@@ -13,6 +13,8 @@ docker run --rm -v "$PWD":/work -w /work rhysd/actionlint
 docker run --rm -v "$PWD":/check -w /check mstruebing/editorconfig-checker:latest
 ```
 
+CI also runs the hub's prose gate on every pull request, scoped to the lines the pull request changes. Run the same gate with this repository as the working directory, from a hub checkout of `ptr727/ProjectTemplate`: `python3 <hub-checkout>/scripts/prose_lint.py --diff origin/develop`. A pull request that adds a comment line needs the `comments` label, and the local run needs `--allow-comments`. The gate reads the label live, so re-run the failed job after adding it rather than pushing again.
+
 Run `actionlint` after any edit under [`.github/workflows/`](./.github/workflows/). After a [`Docker/Dockerfile`](./Docker/Dockerfile) edit, build the image for one platform to prove it still builds. CI's smoke build does the same on a pull request that changes the image's inputs:
 
 ```shell
@@ -23,7 +25,7 @@ docker run -d --rm -p 8443:8443 --name testing testing:latest
 
 The first `docker run` opens a shell in the image. The second starts code-server and serves it on `http://localhost:8443/`.
 
-**What CI cannot exercise.** The Docker Hub push, the Docker Hub overview push, and the GitHub release run only on a real publish. So a pull request that changes the image's inputs proves the image builds for `linux/amd64`. It never proves the image builds for `linux/arm64` or uploads. A pull request that only bumps a hub workflow pin is not smoke-built. Dispatch the workflow on its branch where the bump could change the build. Whether code-server actually starts and the .NET SDKs work inside the running container is covered by no automated check. Start the image detached, as above, and open `http://localhost:8443/` to check it by hand when a change could affect either.
+**What CI cannot exercise.** The Docker Hub push, the Docker Hub overview push, and the GitHub release run only on a real publish. So a pull request that changes the image's inputs proves the image builds for `linux/amd64`. It never proves the image builds for `linux/arm64` or uploads. A pull request that only bumps a hub workflow pin is not smoke-built, per `WORKFLOW.md` D1.4. Dependabot auto-merges such a bump, so the next publish run is the first build at the new pin. Whether code-server actually starts and the .NET SDKs work inside the running container is covered by no automated check. Start the image detached, as above, and open `http://localhost:8443/` to check it by hand when a change could affect either.
 
 ## Runbooks
 

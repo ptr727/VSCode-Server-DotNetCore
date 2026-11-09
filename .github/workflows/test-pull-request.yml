@@ -15,7 +15,8 @@ permissions: {}
 jobs:
 
   # The one image target lists its own paths, so a workflow-only or docs-only pull request marks nothing (D1.1, D1.4).
-  # The Dockerfile copies nothing from the tree, so only its own directory and the version file change the image.
+  # The Dockerfile copies nothing from the tree, so only its own directory and the version file change the image's sources.
+  # A hub pin bump changes the build path too, and D1.4 leaves it unbuilt, so the next publish run is its first build.
   changes:
     name: Detect changed targets job
     runs-on: ubuntu-latest
