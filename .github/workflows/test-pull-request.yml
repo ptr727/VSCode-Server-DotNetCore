@@ -39,7 +39,7 @@ jobs:
 
   validate:
     name: Validate job
-    uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@9296e2502d57d1cc7550594e14cbca1587b723a5 # 2.0.1538
+    uses: ptr727/ProjectTemplate/.github/workflows/validate-task.yml@de513317022bb94c49116c01cc26a177ee9fdf35 # 2.0.1595
     permissions:
       contents: read
 
@@ -48,7 +48,7 @@ jobs:
     name: Smoke build job
     needs: [changes]
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.release == 'true'
-    uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@9296e2502d57d1cc7550594e14cbca1587b723a5 # 2.0.1538
+    uses: ptr727/ProjectTemplate/.github/workflows/build-release-task.yml@de513317022bb94c49116c01cc26a177ee9fdf35 # 2.0.1595
     permissions:
       contents: read
     # The task logs in to Docker Hub on every build for the higher rate limit.
